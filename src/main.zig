@@ -3,6 +3,7 @@ const Io = std.Io;
 const zglfw = @import("zglfw");
 const zopengl = @import("zopengl");
 const zglfwtest = @import("zglfwtest");
+const vec2 = @import("vec2.zig");
 
 pub fn main(init: std.process.Init) !void {
 
@@ -68,6 +69,7 @@ fn onGlfwError(code: zglfw.ErrorCode, desc: ?[*:0]const u8) callconv(.c) void {
 }
 
 test "simple test" {
+    _ = vec2;
     const gpa = std.testing.allocator;
     var list: std.ArrayList(i32) = .empty;
     defer list.deinit(gpa); // Try commenting this out and see if zig detects the memory leak!
