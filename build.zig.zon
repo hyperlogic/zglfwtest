@@ -36,6 +36,10 @@
             .url = "git+https://github.com/zig-gamedev/zglfw#2450fe3c4140091287c79cb41e4a8020af73d896",
             .hash = "zglfw-0.10.0-dev-zgVDNHC7IQAbvGj5whD2Cp5TMmo5G2C9gNYaF-y-EDZ3",
         },
+        .zopengl = .{
+            .url = "git+https://github.com/zig-gamedev/zopengl#447f69e5c93bd94285e860b9e77d09aa01a82bda",
+            .hash = "zopengl-0.6.0-dev-5-tnz8mnDgCHR72YtUpLBYW_u4JgZ0Ub-UFX-M0zRSG1",
+        },
     },
     .paths = .{
         "build.zig",

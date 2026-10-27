@@ -1,7 +1,7 @@
 const std = @import("std");
 const Io = std.Io;
-const glfw = @import("zglfw");
-
+const zglfw = @import("zglfw");
+const zopengl = @import("zopengl");
 const zglfwtest = @import("zglfwtest");
 
 pub fn main(init: std.process.Init) !void {
@@ -32,36 +32,38 @@ pub fn main(init: std.process.Init) !void {
 
     try stdout_writer.flush(); // Don't forget to flush!
 
-    _ = glfw.setErrorCallback(onGlfwError);
+    _ = zglfw.setErrorCallback(onGlfwError);
 
-    try glfw.init();
-    defer glfw.terminate();
+    try zglfw.init();
+    defer zglfw.terminate();
 
-    //const window = try glfw.createWindow(600, 600, "zig-gamedev: minimal_glfw_gl", null, null);
-    //defer glfw.destroyWindow(window);
-
-    // or, using the equivalent, encapsulated, "objecty" API:
-    const window = try glfw.Window.create(600, 600, "zig-gamedev: minimal_glfw_gl", null, null);
-    defer window.destroy();
+    const window = try zglfw.createWindow(600, 600, "zig-gamedev: minimal_glfw_gl", null, null);
+    defer zglfw.destroyWindow(window);
 
     // The OpenGL context must be current on this thread, otherwise
     // swapBuffers() is a no-op and on Wayland the surface never gets a
     // buffer, so the compositor never shows the window.
-    glfw.makeContextCurrent(window);
-    glfw.swapInterval(1);
+    zglfw.makeContextCurrent(window);
+    zglfw.swapInterval(1);
+
+    try zopengl.loadCoreProfile(zglfw.getProcAddress, 4, 0);
 
     // setup your graphics context here
+    const gl = zopengl.bindings;
 
     while (!window.shouldClose()) {
-        glfw.pollEvents();
+        zglfw.pollEvents();
 
         // render your things here
+        const color = [_]f32{ 1.0, 0.0, 0.0, 1.0 };
+        gl.clearBufferfv(gl.COLOR, 0, &color);
 
         window.swapBuffers();
     }
+    zglfw.pollEvents(); // flush Wayland queue before terminate
 }
 
-fn onGlfwError(code: glfw.ErrorCode, desc: ?[*:0]const u8) callconv(.c) void {
+fn onGlfwError(code: zglfw.ErrorCode, desc: ?[*:0]const u8) callconv(.c) void {
     std.log.err("glfw error {d}: {s}", .{ code, desc orelse "" });
 }
 
