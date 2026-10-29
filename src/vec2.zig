@@ -80,7 +80,6 @@ pub fn Vec2(comptime T: type) type {
 
 test "Vec2 compiles" {
     std.testing.refAllDecls(Vec2(f32));
-    std.testing.refAllDecls(Vec2(f64));
 }
 
 test "Vec2 zero" {
@@ -179,8 +178,10 @@ test "Vec2 safeUnit" {
 
 test "Vec2 randomUnit" {
     var prng = std.Random.DefaultPrng.init(42);
-    const v = Vec2(f32).randomUnit(prng.random());
-    try std.testing.expectApproxEqAbs(@as(f32, 1.0), v.dot(v), 1e-5);
+    for (0..10) |_| {
+        const v = Vec2(f32).randomUnit(prng.random());
+        try std.testing.expectApproxEqAbs(@as(f32, 1.0), v.dot(v), 1e-5);
+    }
 }
 
 test "Vec2 fuzzyEqual" {

@@ -4,6 +4,8 @@ const zglfw = @import("zglfw");
 const zopengl = @import("zopengl");
 const zglfwtest = @import("zglfwtest");
 const vec2 = @import("vec2.zig");
+const vec3 = @import("vec3.zig");
+const vec4 = @import("vec4.zig");
 
 pub fn main(init: std.process.Init) !void {
 
@@ -68,8 +70,14 @@ fn onGlfwError(code: zglfw.ErrorCode, desc: ?[*:0]const u8) callconv(.c) void {
     std.log.err("glfw error {d}: {s}", .{ code, desc orelse "" });
 }
 
-test "simple test" {
+test {
+    // Reference the math modules so their tests are analyzed and run.
     _ = vec2;
+    _ = vec3;
+    _ = vec4;
+}
+
+test "simple test" {
     const gpa = std.testing.allocator;
     var list: std.ArrayList(i32) = .empty;
     defer list.deinit(gpa); // Try commenting this out and see if zig detects the memory leak!
