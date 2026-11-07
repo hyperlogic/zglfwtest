@@ -6,6 +6,7 @@ const zglfwtest = @import("zglfwtest");
 const vec2 = @import("vec2.zig");
 const vec3 = @import("vec3.zig");
 const vec4 = @import("vec4.zig");
+const quat = @import("quat.zig");
 
 pub fn main(init: std.process.Init) !void {
 
@@ -75,6 +76,7 @@ test {
     _ = vec2;
     _ = vec3;
     _ = vec4;
+    _ = quat;
 }
 
 test "simple test" {

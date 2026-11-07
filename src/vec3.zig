@@ -22,32 +22,32 @@ pub fn Vec3(comptime T: type) type {
             return Self.init(0.0, 0.0, 0.0);
         }
 
-        pub fn add(lhs: Self, rhs: Self) Self {
-            return Self.init(lhs.x + rhs.x, lhs.y + rhs.y, lhs.z + rhs.z);
+        pub fn add(self: Self, other: Self) Self {
+            return Self.init(self.x + other.x, self.y + other.y, self.z + other.z);
         }
 
-        pub fn sub(lhs: Self, rhs: Self) Self {
-            return Self.init(lhs.x - rhs.x, lhs.y - rhs.y, lhs.z - rhs.z);
+        pub fn sub(self: Self, other: Self) Self {
+            return Self.init(self.x - other.x, self.y - other.y, self.z - other.z);
         }
 
-        pub fn mul(lhs: Self, rhs: Self) Self {
-            return Self.init(lhs.x * rhs.x, lhs.y * rhs.y, lhs.z * rhs.z);
+        pub fn mul(self: Self, other: Self) Self {
+            return Self.init(self.x * other.x, self.y * other.y, self.z * other.z);
         }
 
-        pub fn mulScalar(lhs: Self, rhs: T) Self {
-            return Self.init(lhs.x * rhs, lhs.y * rhs, lhs.z * rhs);
+        pub fn mulScalar(self: Self, scalar: T) Self {
+            return Self.init(self.x * scalar, self.y * scalar, self.z * scalar);
         }
 
-        pub fn div(lhs: Self, rhs: Self) Self {
-            return Self.init(lhs.x / rhs.x, lhs.y / rhs.y, lhs.z / rhs.z);
+        pub fn div(self: Self, other: Self) Self {
+            return Self.init(self.x / other.x, self.y / other.y, self.z / other.z);
         }
 
-        pub fn divScalar(lhs: Self, rhs: T) Self {
-            return Self.init(lhs.x / rhs, lhs.y / rhs, lhs.z / rhs);
+        pub fn divScalar(self: Self, scalar: T) Self {
+            return Self.init(self.x / scalar, self.y / scalar, self.z / scalar);
         }
 
-        pub fn dot(lhs: Self, rhs: Self) T {
-            return lhs.x * rhs.x + lhs.y * rhs.y + lhs.z * rhs.z;
+        pub fn dot(self: Self, other: Self) T {
+            return self.x * other.x + self.y * other.y + self.z * other.z;
         }
 
         pub fn len(self: Self) T {
@@ -74,8 +74,8 @@ pub fn Vec3(comptime T: type) type {
             return Self.init(@cos(theta) * @sin(phi), @sin(theta) * @sin(phi), @cos(phi));
         }
 
-        pub fn fuzzyEqual(lhs: Self, rhs: Self, eps: T) bool {
-            return @abs(lhs.x - rhs.x) <= eps and @abs(lhs.y - rhs.y) <= eps and @abs(lhs.z - rhs.z) <= eps;
+        pub fn fuzzyEqual(self: Self, other: Self, eps: T) bool {
+            return @abs(self.x - other.x) <= eps and @abs(self.y - other.y) <= eps and @abs(self.z - other.z) <= eps;
         }
     };
 }
