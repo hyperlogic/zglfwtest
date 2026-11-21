@@ -17,7 +17,7 @@ pub fn Vec2(comptime T: type) type {
             return Self{ .x = x, .y = y };
         }
 
-        pub fn zero() Self {
+        pub fn initZero() Self {
             return Self.init(0.0, 0.0);
         }
 
@@ -83,7 +83,7 @@ test "Vec2 compiles" {
 }
 
 test "Vec2 zero" {
-    const a = Vec2(f32).zero();
+    const a = Vec2(f32).initZero();
     try std.testing.expectEqual(@as(f32, 0.0), a.x);
     try std.testing.expectEqual(@as(f32, 0.0), a.y);
 }
@@ -156,7 +156,7 @@ test "Vec2 unit" {
     try std.testing.expectApproxEqAbs(@as(f32, 2.0 / @sqrt(5.0)), c.y, 1e-5);
     try std.testing.expectApproxEqAbs(c.len(), 1.0, 1e-5);
 
-    const b = Vec2(f32).zero();
+    const b = Vec2(f32).initZero();
     const d = b.unit();
     try std.testing.expect(std.math.isNan(d.x));
     try std.testing.expect(std.math.isNan(d.y));
@@ -169,7 +169,7 @@ test "Vec2 safeUnit" {
     try std.testing.expectApproxEqAbs(@as(f32, 1.0 / @sqrt(5.0)), c.x, 1e-5);
     try std.testing.expectApproxEqAbs(@as(f32, 2.0 / @sqrt(5.0)), c.y, 1e-5);
     try std.testing.expectApproxEqAbs(c.len(), 1.0, 1e-5);
-    const b = Vec2(f32).zero();
+    const b = Vec2(f32).initZero();
     const d = b.safeUnit(safe);
     try std.testing.expectApproxEqAbs(@as(f32, 1.0), d.x, 1e-5);
     try std.testing.expectApproxEqAbs(@as(f32, 0.0), d.y, 1e-5);

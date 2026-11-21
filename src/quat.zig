@@ -1,5 +1,7 @@
 const std = @import("std");
 const vec3 = @import("vec3.zig");
+const mat3 = @import("mat3.zig");
+const mat4 = @import("mat4.zig");
 
 pub fn Quat(comptime T: type) type {
     const type_info = @typeInfo(T);
@@ -20,6 +22,10 @@ pub fn Quat(comptime T: type) type {
             return Self{ .x = x, .y = y, .z = z, .w = w };
         }
 
+        pub fn initIdent() Self {
+            return Self.init(0.0, 0.0, 0.0, 1.0);
+        }
+
         pub fn initAxisAngle(axis: vec3.Vec3(T), angle: T) Self {
             const l = axis.len();
             const n = axis.mulScalar(@sin(angle / 2.0) / l);
@@ -27,8 +33,14 @@ pub fn Quat(comptime T: type) type {
             return Self.init(n.x, n.y, n.z, w);
         }
 
-        pub fn ident() Self {
-            return Self.init(0.0, 0.0, 0.0, 1.0);
+        pub fn initMat4(m: mat4.Mat4(T)) Self {
+            _ = m;
+            @compileError("implemented");
+        }
+
+        pub fn initMat3(m: mat3.Mat3(T)) Self {
+            _ = m;
+            @compileError("not implemented");
         }
 
         pub fn add(self: Self, other: Self) Self {
@@ -39,12 +51,17 @@ pub fn Quat(comptime T: type) type {
             return Self.init(self.x - other.x, self.y - other.y, self.z - other.z, self.w - other.w);
         }
 
+        pub fn neg(self: Self) Self {
+            return Self.init(-self.x, -self.y, -self.z, -self.w);
+        }
+
         pub fn mul(self: Self, other: Self) Self {
-            const x = self.x * other.w + self.y * other.z - self.z * other.y + self.w * other.x;
-            const y = -self.x * other.z + self.y * other.w + self.z * other.x + self.w * other.y;
-            const z = self.x * other.y - self.y * other.x + self.z * other.w + self.w * other.z;
-            const w = -self.x * other.x - self.y * other.y - self.z * other.z + self.w * other.w;
-            return Self.init(x, y, z, w);
+            return Self.init(
+                self.x * other.w + self.y * other.z - self.z * other.y + self.w * other.x,
+                -self.x * other.z + self.y * other.w + self.z * other.x + self.w * other.y,
+                self.x * other.y - self.y * other.x + self.z * other.w + self.w * other.z,
+                -self.x * other.x - self.y * other.y - self.z * other.z + self.w * other.w,
+            );
         }
 
         pub fn mulScalar(self: Self, scalar: T) Self {
@@ -106,7 +123,25 @@ pub fn Quat(comptime T: type) type {
         }
 
         pub fn fuzzyEqual(self: Self, other: Self, eps: T) bool {
-            return @abs(self.x - other.x) <= eps and @abs(self.y - other.y) <= eps and @abs(self.z - other.z) <= eps and @abs(self.w - other.w) <= eps;
+            return (@abs(self.x - other.x) <= eps and
+                @abs(self.y - other.y) <= eps and
+                @abs(self.z - other.z) <= eps and
+                @abs(self.w - other.w) <= eps);
+        }
+
+        pub fn lerp(self: Self, other: Self, alpha: T) Self {
+            const t = std.math.clamp(alpha, 0.0, 1.0);
+            const o = if (self.dot(other) < 0.0) other.neg() else other;
+            return Self.init(
+                std.math.lerp(self.x, o.x, t),
+                std.math.lerp(self.y, o.y, t),
+                std.math.lerp(self.z, o.z, t),
+                std.math.lerp(self.w, o.w, t),
+            );
+        }
+
+        pub fn nlerp(self: Self, other: Self, alpha: T) Self {
+            return self.lerp(other, alpha).safeUnit(other);
         }
     };
 }
