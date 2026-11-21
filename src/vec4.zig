@@ -15,6 +15,9 @@ pub fn Vec4(comptime T: type) type {
         z: T,
         w: T,
 
+        pub const zero: Self = Self.init(0, 0, 0, 0);
+        pub const one: Self = Self.init(1, 1, 1, 1);
+
         pub fn init(x: T, y: T, z: T, w: T) Self {
             return Self{ .x = x, .y = y, .z = z, .w = w };
         }

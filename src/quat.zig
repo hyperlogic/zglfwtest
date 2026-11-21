@@ -1,7 +1,7 @@
 const std = @import("std");
-const vec3 = @import("vec3.zig");
-const mat3 = @import("mat3.zig");
-const mat4 = @import("mat4.zig");
+const Vec3 = @import("vec3.zig").Vec3;
+const Mat3 = @import("mat3.zig").Mat3;
+const Mat4 = @import("mat4.zig").Mat4;
 
 pub fn Quat(comptime T: type) type {
     const type_info = @typeInfo(T);
@@ -18,28 +18,31 @@ pub fn Quat(comptime T: type) type {
         z: T,
         w: T,
 
+        pub const identity: Self = Self.init(0, 0, 0, 1);
+
         pub fn init(x: T, y: T, z: T, w: T) Self {
             return Self{ .x = x, .y = y, .z = z, .w = w };
         }
 
-        pub fn initIdent() Self {
-            return Self.init(0.0, 0.0, 0.0, 1.0);
-        }
-
-        pub fn initAxisAngle(axis: vec3.Vec3(T), angle: T) Self {
+        pub fn initAxisAngle(axis: Vec3(T), angle: T) Self {
             const l = axis.len();
             const n = axis.mulScalar(@sin(angle / 2.0) / l);
             const w = @cos(angle / 2.0);
             return Self.init(n.x, n.y, n.z, w);
         }
 
-        pub fn initMat4(m: mat4.Mat4(T)) Self {
+        pub fn initMat4(m: Mat4(T)) Self {
             _ = m;
             @compileError("implemented");
         }
 
-        pub fn initMat3(m: mat3.Mat3(T)) Self {
+        pub fn initMat3(m: Mat3(T)) Self {
             _ = m;
+            @compileError("not implemented");
+        }
+
+        pub fn initVectors(from: Vec3(T), to: Vec3(T)) Self {
+            _ = .{ from, to };
             @compileError("not implemented");
         }
 
@@ -72,8 +75,8 @@ pub fn Quat(comptime T: type) type {
             return Self.init(self.x / scalar, self.y / scalar, self.z / scalar, self.w / scalar);
         }
 
-        pub fn im(self: Self) vec3.Vec3(T) {
-            return vec3.Vec3(T).init(self.x, self.y, self.z);
+        pub fn im(self: Self) Vec3(T) {
+            return Vec3(T).init(self.x, self.y, self.z);
         }
 
         pub fn exp(self: Self) Self {
@@ -123,10 +126,11 @@ pub fn Quat(comptime T: type) type {
         }
 
         pub fn fuzzyEqual(self: Self, other: Self, eps: T) bool {
-            return (@abs(self.x - other.x) <= eps and
-                @abs(self.y - other.y) <= eps and
-                @abs(self.z - other.z) <= eps and
-                @abs(self.w - other.w) <= eps);
+            const o = if (self.dot(other) < 0.0) other.neg() else other;
+            return (@abs(self.x - o.x) <= eps and
+                @abs(self.y - o.y) <= eps and
+                @abs(self.z - o.z) <= eps and
+                @abs(self.w - o.w) <= eps);
         }
 
         pub fn lerp(self: Self, other: Self, alpha: T) Self {
@@ -142,6 +146,27 @@ pub fn Quat(comptime T: type) type {
 
         pub fn nlerp(self: Self, other: Self, alpha: T) Self {
             return self.lerp(other, alpha).safeUnit(other);
+        }
+
+        pub fn extractSwingTwist(self: Self, twist_axis: Vec3(T)) struct { Self, Self } {
+            const d = twist_axis.unit();
+
+            // twist part has an axis (imaginary component) that is parallel to twist_axis argument.
+            const axis_of_rot = self.im();
+            const twist_im = d.mulScalar(d.dot(axis_of_rot));
+
+            // and real compoent is relatively proportioanl to rotation's real component
+            const twist = Quat(T).init(self.w, twist_im.x, twist_im.y, twist_im.z).unit();
+
+            // once twist is knonw we can solve for wsing.
+            // self = swing * rot -> swing = self * ~twist
+            const swing = self.mul(twist.inverse());
+            return .{ swing, twist };
+        }
+
+        pub fn rotate(self: Self, v: Vec3(T)) Vec3(T) {
+            const q = self.mul(Self.init(v.x, v.y, v.z, 0.0)).mul(self.conj());
+            return q.im();
         }
     };
 }

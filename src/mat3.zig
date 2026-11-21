@@ -52,6 +52,17 @@ pub fn Mat3(comptime T: type) type {
             return Self.initScale(Vec3(T).init(s, s, s));
         }
 
+        pub fn mul(self: Self, other: Self) Self {
+            const r0 = self.extractRow0();
+            const r1 = self.extractRow1();
+            const r2 = self.extractRow2();
+            return Self.init(
+                Vec3(T).init(r0.dot(other.x), r0.dot(other.y), r0.dot(other.z)),
+                Vec3(T).init(r1.dot(other.x), r1.dot(other.y), r1.dot(other.z)),
+                Vec3(T).init(r2.dot(other.x), r2.dot(other.y), r2.dot(other.z)),
+            );
+        }
+
         pub fn extractRot(self: Self) Quat(T) {
             return Quat(T).initMat3(self);
         }
@@ -63,6 +74,25 @@ pub fn Mat3(comptime T: type) type {
 
         pub fn extractRotScale(self: Self) struct { Quat(T), Vec3(T) } {
             return .{ self.extractRot(), self.extractScale() };
+        }
+
+        pub fn extractRow0(self: Self) Vec3(T) {
+            return Vec3(T).init(self.x.x, self.y.x, self.z.x);
+        }
+
+        pub fn extractRow1(self: Self) Vec3(T) {
+            return Vec3(T).init(self.x.y, self.y.y, self.z.y);
+        }
+
+        pub fn extractRow2(self: Self) Vec3(T) {
+            return Vec3(T).init(self.x.z, self.y.z, self.z.z);
+        }
+
+        pub fn xform(self: Self, v: Vec3(T)) Vec3(T) {
+            const r0 = self.extractRow0();
+            const r1 = self.extractRow1();
+            const r2 = self.extractRow2();
+            return Vec3(T).init(r0.dot(v), r1.dot(v), r2.dot(v));
         }
     };
 }
