@@ -17,12 +17,14 @@ pub fn Mat3(comptime T: type) type {
         y: Vec3(T),
         z: Vec3(T),
 
+        pub const identity = Self.init(
+            Vec3(T).init(1, 0, 0),
+            Vec3(T).init(0, 1, 0),
+            Vec3(T).init(0, 0, 1),
+        );
+
         pub fn init(x: Vec3(T), y: Vec3(T), z: Vec3(T)) Self {
             return Self{ .x = x, .y = y, .z = z };
-        }
-
-        pub fn initIdent() Self {
-            return Self.initUniformScale(1.0);
         }
 
         pub fn initRot(r: Quat(T)) Self {

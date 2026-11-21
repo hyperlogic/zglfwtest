@@ -19,12 +19,15 @@ pub fn Mat4(comptime T: type) type {
         z: Vec4(T),
         w: Vec4(T),
 
+        pub const identity = Self.init(
+            Vec4(T).init(1, 0, 0, 0),
+            Vec4(T).init(0, 1, 0, 0),
+            Vec4(T).init(0, 0, 1, 0),
+            Vec4(T).init(0, 0, 0, 1),
+        );
+
         pub fn init(x: Vec4(T), y: Vec4(T), z: Vec4(T), w: Vec4(T)) Self {
             return Self{ .x = x, .y = y, .z = z, .w = w };
-        }
-
-        pub fn initIdent() Self {
-            return Self.initUniformScale(1.0);
         }
 
         pub fn initRot(r: Quat(T)) Self {
