@@ -82,17 +82,21 @@ pub fn Mat4(comptime T: type) type {
             return Self.initScale(Vec3(T).init(s, s, s));
         }
 
-        pub fn trans(self: Self) Vec3(T) {
+        pub fn extractTrans(self: Self) Vec3(T) {
             return Vec3(T).init(self.w.x, self.w.y, self.w.z);
         }
 
-        pub fn rot(self: Self) Quat(T) {
+        pub fn extractRot(self: Self) Quat(T) {
             return Quat(T).initMat4(self);
         }
 
-        pub fn scale(self: Self) Vec3(T) {
+        pub fn extractScale(self: Self) Vec3(T) {
             _ = self;
             @compileError("not implemented");
+        }
+
+        pub fn extractTransRotScale(self: Self) struct { Vec3(T), Quat(T), Vec3(T) } {
+            return .{ self.extractTrans(), self.extractRot(), self.extractScale() };
         }
     };
 }

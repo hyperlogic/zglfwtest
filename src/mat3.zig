@@ -51,6 +51,19 @@ pub fn Mat3(comptime T: type) type {
         pub fn initUniformScale(s: T) Self {
             return Self.initScale(Vec3(T).init(s, s, s));
         }
+
+        pub fn extractRot(self: Self) Quat(T) {
+            return Quat(T).initMat3(self);
+        }
+
+        pub fn extractScale(self: Self) Vec3(T) {
+            _ = self;
+            @compileError("not implemented");
+        }
+
+        pub fn extractRotScale(self: Self) struct { Quat(T), Vec3(T) } {
+            return .{ self.extractRot(), self.extractScale() };
+        }
     };
 }
 
