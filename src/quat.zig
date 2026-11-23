@@ -3,6 +3,9 @@ const Vec3 = @import("vec3.zig").Vec3;
 const Mat3 = @import("mat3.zig").Mat3;
 const Mat4 = @import("mat4.zig").Mat4;
 
+pub const Quatf = Quat(f32);
+pub const Quatd = Quat(f64);
+
 pub fn Quat(comptime T: type) type {
     const type_info = @typeInfo(T);
     switch (type_info) {
@@ -32,18 +35,103 @@ pub fn Quat(comptime T: type) type {
         }
 
         pub fn initMat4(m: Mat4(T)) Self {
-            _ = m;
-            @compileError("implemented");
+            return initMat3(m.extractMat3());
         }
 
         pub fn initMat3(m: Mat3(T)) Self {
-            _ = m;
-            @compileError("not implemented");
+            // put the 3x3 part of m into local vars
+            var a = m.x.x;
+            var b = m.y.x;
+            var c = m.z.x;
+            var d = m.x.y;
+            var e = m.y.y;
+            var f = m.z.y;
+            var g = m.x.z;
+            var h = m.y.z;
+            var i = m.z.z;
+            // compute det of 3x3 part
+            const det = a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
+            var s: Vec3(T) = undefined;
+            s.x = @sqrt(a * a + d * d + g * g);
+            if (det < 0) {
+                // left handed matrix, flip sign
+                s.x = -s.x;
+            }
+            s.y = @sqrt(b * b + e * e + h * h);
+            s.z = @sqrt(c * c + f * f + i * i);
+
+            // cancel out scale before extracting quaternion
+            const inv_sx = 1 / s.x;
+            const inv_sy = 1 / s.y;
+            const inv_sz = 1 / s.z;
+            a *= inv_sx;
+            d *= inv_sx;
+            g *= inv_sx;
+            b *= inv_sy;
+            e *= inv_sy;
+            h *= inv_sy;
+            c *= inv_sz;
+            f *= inv_sz;
+            i *= inv_sz;
+
+            // shepards method
+            const four_x_squared_minus1 = a - e - i;
+            const four_y_squared_minus1 = e - a - i;
+            const four_z_squared_minus1 = i - a - e;
+            const four_w_squared_minus1 = a + e + i;
+            var biggest_index: i32 = 0;
+            var four_biggest_squared_minus1 = four_w_squared_minus1;
+            if (four_x_squared_minus1 > four_biggest_squared_minus1) {
+                four_biggest_squared_minus1 = four_x_squared_minus1;
+                biggest_index = 1;
+            }
+            if (four_y_squared_minus1 > four_biggest_squared_minus1) {
+                four_biggest_squared_minus1 = four_y_squared_minus1;
+                biggest_index = 2;
+            }
+            if (four_z_squared_minus1 > four_biggest_squared_minus1) {
+                four_biggest_squared_minus1 = four_z_squared_minus1;
+                biggest_index = 3;
+            }
+            const biggest_val = @sqrt(four_biggest_squared_minus1 + 1) * 0.5;
+            const mult = 0.25 / biggest_val;
+
+            switch (biggest_index) {
+                0 => {
+                    return Self.init((h - f) * mult, (c - g) * mult, (d - b) * mult, biggest_val);
+                },
+                1 => {
+                    return Self.init(biggest_val, (b + d) * mult, (g + c) * mult, (h - f) * mult);
+                },
+                2 => {
+                    return Self.init((b + d) * mult, biggest_val, (f + h) * mult, (c - g) * mult);
+                },
+                3 => {
+                    return Self.init((g + c) * mult, (f + h) * mult, biggest_val, (d - b) * mult);
+                },
+                else => unreachable,
+            }
         }
 
         pub fn initVectors(from: Vec3(T), to: Vec3(T)) Self {
-            _ = .{ from, to };
-            @compileError("not implemented");
+            const k = @sqrt(from.dot(from) * to.dot(to)); // |from| * |to|
+            var w = k + from.dot(to);
+            var v: Vec3(T) = undefined;
+
+            if (w < 1e-6 * k) {
+                // Antiparallel: rotate 180° around any axis perpendicular to `from`.
+                w = 0;
+                if (@abs(from.x) > @abs(from.z)) {
+                    v = Vec3(T).init(-from.y, from.x, 0);
+                } else {
+                    v = Vec3(T).init(0, -from.z, from.y);
+                }
+            } else {
+                v = from.cross(to);
+            }
+
+            const inv_len = 1 / @sqrt(v.dot(v) + w * w);
+            return Self.init(v.x * inv_len, v.y * inv_len, v.z * inv_len, w * inv_len);
         }
 
         pub fn add(self: Self, other: Self) Self {
@@ -148,6 +236,41 @@ pub fn Quat(comptime T: type) type {
             return self.lerp(other, alpha).safeUnit(other);
         }
 
+        pub fn slerp(self: Self, other: Self, alpha: T) Self {
+            var cos_theta = self.dot(other);
+
+            // q and -q are the same rotation; flip one to take the shorter arc.
+            const sign: T = if (cos_theta < 0) -1 else 1;
+            cos_theta *= sign;
+
+            // Default to plain lerp weights, used when the quats are nearly identical.
+            var a: T = 1 - alpha;
+            var b: T = alpha;
+            if (cos_theta < 1 - 1e-6) {
+                const theta = std.math.acos(cos_theta);
+                const inv_sin = 1 / @sin(theta);
+                a = @sin((1 - alpha) * theta) * inv_sin;
+                b = @sin(alpha * theta) * inv_sin;
+            }
+            b *= sign;
+
+            return Self.init(
+                a * self.x + b * other.x,
+                a * self.y + b * other.y,
+                a * self.z + b * other.z,
+                a * self.w + b * other.w,
+            );
+        }
+        pub fn extractAxisAngle(self: Self) struct { Vec3(T), T } {
+            const s = self.im().len(); // sin(angle/2)
+            if (s < 1e-6) {
+                // No rotation: axis is arbitrary.
+                return .{ Vec3(T).init(1, 0, 0), 0 };
+            }
+            const angle = 2 * std.math.atan2(s, self.w);
+            return .{ Vec3(T).init(self.x / s, self.y / s, self.z / s), angle };
+        }
+
         pub fn extractSwingTwist(self: Self, twist_axis: Vec3(T)) struct { Self, Self } {
             const d = twist_axis.unit();
 
@@ -174,3 +297,72 @@ pub fn Quat(comptime T: type) type {
 test "Quat compiles" {
     std.testing.refAllDecls(Quat(f32));
 }
+
+test "Quat initAxisAngle" {
+    const Vec3f = Vec3(f32);
+    const eps: f32 = 0.0001;
+    const cases = [_]struct { Quatf, Vec3f, f32 }{
+        .{ Quatf.init(0, 0, 0, 1), Vec3f.init(1, 0, 0), 0 },
+        .{ Quatf.init(0, 0, 0, 1), Vec3f.init(0, 1, 0), 0 },
+        .{ Quatf.init(0, 0, 0, 1), Vec3f.init(0, 1, 0), 0 },
+    };
+
+    for (cases) |case| {
+        const q, const axis, const angle = case;
+        const pass = q.fuzzyEqual(Quatf.initAxisAngle(axis, angle), eps);
+        if (!pass) {
+            std.debug.print("case failed {any}\n", .{case});
+        }
+        try std.testing.expect(pass);
+    }
+}
+
+test "Quat initMat4" {}
+
+test "Quat initMat3" {}
+
+test "Quat initVectors" {}
+
+test "Quat add" {}
+
+test "Quat sub" {}
+
+test "Quat neg" {}
+
+test "Quat mul" {}
+
+test "Quat mulScalar" {}
+
+test "Quat divScalar" {}
+
+test "Quat im" {}
+
+test "Quat exp" {}
+
+test "Quat log" {}
+
+test "Quat dot" {}
+
+test "Quat len" {}
+
+test "Quat unit" {}
+
+test "Quat safeUnit" {}
+
+test "Quat conj" {}
+
+test "Quat inverse" {}
+
+test "Quat fuzzyEqual" {}
+
+test "Quat lerp" {}
+
+test "Quat nlerp" {}
+
+test "Quat slerp" {}
+
+test "Quat extractSwingTwist" {}
+
+test "Quat extractAxisAngle" {}
+
+test "Quat rotate" {}

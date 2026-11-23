@@ -1,4 +1,8 @@
 const std = @import("std");
+const Vec3 = @import("vec3.zig").Vec3;
+
+pub const Vec4f = Vec4(f32);
+pub const Vec4d = Vec4(f64);
 
 pub fn Vec4(comptime T: type) type {
     const type_info = @typeInfo(T);
@@ -22,8 +26,8 @@ pub fn Vec4(comptime T: type) type {
             return Self{ .x = x, .y = y, .z = z, .w = w };
         }
 
-        pub fn initZero() Self {
-            return Self.init(0.0, 0.0, 0.0, 0.0);
+        pub fn initVec3(v3: Vec3(T), w: T) Self {
+            return Self.init(v3.x, v3.y, v3.z, w);
         }
 
         pub fn add(self: Self, other: Self) Self {
@@ -86,7 +90,7 @@ test "Vec4 compiles" {
 }
 
 test "Vec4 zero" {
-    const a = Vec4(f32).initZero();
+    const a = Vec4(f32).zero;
     try std.testing.expectEqual(@as(f32, 0.0), a.x);
     try std.testing.expectEqual(@as(f32, 0.0), a.y);
     try std.testing.expectEqual(@as(f32, 0.0), a.z);
@@ -175,7 +179,7 @@ test "Vec4 unit" {
     try std.testing.expectApproxEqAbs(@as(f32, 4.0 / @sqrt(30.0)), c.w, 1e-5);
     try std.testing.expectApproxEqAbs(c.len(), 1.0, 1e-5);
 
-    const b = Vec4(f32).initZero();
+    const b = Vec4(f32).zero;
     const d = b.unit();
     try std.testing.expect(std.math.isNan(d.x));
     try std.testing.expect(std.math.isNan(d.y));
@@ -190,7 +194,7 @@ test "Vec4 safeUnit" {
     try std.testing.expectApproxEqAbs(@as(f32, 3.0 / @sqrt(30.0)), c.z, 1e-5);
     try std.testing.expectApproxEqAbs(@as(f32, 4.0 / @sqrt(30.0)), c.w, 1e-5);
     try std.testing.expectApproxEqAbs(c.len(), 1.0, 1e-5);
-    const b = Vec4(f32).initZero();
+    const b = Vec4(f32).zero;
     const d = b.safeUnit(safe);
     try std.testing.expectApproxEqAbs(@as(f32, 1.0), d.x, 1e-5);
     try std.testing.expectApproxEqAbs(@as(f32, 0.0), d.y, 1e-5);

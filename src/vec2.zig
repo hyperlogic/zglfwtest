@@ -1,5 +1,8 @@
 const std = @import("std");
 
+pub const Vec2f = Vec2(f32);
+pub const Vec2d = Vec2(f64);
+
 pub fn Vec2(comptime T: type) type {
     const type_info = @typeInfo(T);
     switch (type_info) {

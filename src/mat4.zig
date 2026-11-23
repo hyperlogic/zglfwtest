@@ -1,7 +1,11 @@
 const std = @import("std");
+const Mat3 = @import("mat3.zig").Mat3;
 const Vec3 = @import("vec3.zig").Vec3;
 const Vec4 = @import("vec4.zig").Vec4;
 const Quat = @import("quat.zig").Quat;
+
+pub const Mat4f = Mat4(f32);
+pub const Mat4d = Mat4(f64);
 
 pub fn Mat4(comptime T: type) type {
     const type_info = @typeInfo(T);
@@ -31,26 +35,47 @@ pub fn Mat4(comptime T: type) type {
         }
 
         pub fn initRot(r: Quat(T)) Self {
-            _ = r;
-            @compileError("not implemented");
+            const x = r.rotate(Vec3(T).x_axis);
+            const y = r.rotate(Vec3(T).y_axis);
+            const z = r.rotate(Vec3(T).z_axis);
+            return Self.init(
+                Vec4(T).initVec3(x, 0),
+                Vec4(T).initVec3(y, 0),
+                Vec4(T).initVec3(z, 0),
+                Vec4(T).init(0, 0, 0, 1),
+            );
         }
 
         pub fn initRotScale(r: Quat(T), s: Vec3(T)) Self {
-            _ = .{ r, s };
-            @compileError("not implemented");
+            const x = r.rotate(Vec3(T).x_axis).mulScalar(s.x);
+            const y = r.rotate(Vec3(T).y_axis).mulScalar(s.y);
+            const z = r.rotate(Vec3(T).z_axis).mulScalar(s.z);
+            return Self.init(
+                Vec4(T).initVec3(x, 0),
+                Vec4(T).initVec3(y, 0),
+                Vec4(T).initVec3(z, 0),
+                Vec4(T).init(0, 0, 0, 1),
+            );
         }
 
         pub fn initRotUniformScale(r: Quat(T), s: T) Self {
-            _ = .{ r, s };
-            @compileError("not implemented");
+            const x = r.rotate(Vec3(T).x_axis).mulScalar(s);
+            const y = r.rotate(Vec3(T).y_axis).mulScalar(s);
+            const z = r.rotate(Vec3(T).z_axis).mulScalar(s);
+            return Self.init(
+                Vec4(T).initVec3(x, 0),
+                Vec4(T).initVec3(y, 0),
+                Vec4(T).initVec3(z, 0),
+                Vec4(T).init(0, 0, 0, 1),
+            );
         }
 
         pub fn initScale(s: Vec3(T)) Self {
             return Self.init(
-                Vec4(T).init(s.x, 0.0, 0.0, 0.0),
-                Vec4(T).init(0.0, s.y, 0.0, 0.0),
-                Vec4(T).init(0.0, 0.0, s.z, 0.0),
-                Vec4(T).init(0.0, 0.0, 0.0, 1.0),
+                Vec4(T).init(s.x, 0, 0, 0),
+                Vec4(T).init(0, s.y, 0, 0),
+                Vec4(T).init(0, 0, s.z, 0),
+                Vec4(T).init(0, 0, 0, 1),
             );
         }
 
@@ -63,21 +88,35 @@ pub fn Mat4(comptime T: type) type {
         }
 
         pub fn initTransRotScale(t: Vec3(T), r: Quat(T), s: Vec3(T)) Self {
-            _ = .{ t, r, s };
-            @compileError("not implemented");
+            const x = r.rotate(Vec3(T).x_axis).mulScalar(s.x);
+            const y = r.rotate(Vec3(T).y_axis).mulScalar(s.y);
+            const z = r.rotate(Vec3(T).z_axis).mulScalar(s.z);
+            return Self.init(
+                Vec4(T).initVec3(x, 0),
+                Vec4(T).initVec3(y, 0),
+                Vec4(T).initVec3(z, 0),
+                Vec4(T).initVec3(t, 1),
+            );
         }
 
         pub fn initTransRotUniformScale(t: Vec3(T), r: Quat(T), s: T) Self {
-            _ = .{ t, r, s };
-            @compileError("not implemented");
+            const x = r.rotate(Vec3(T).x_axis).mulScalar(s);
+            const y = r.rotate(Vec3(T).y_axis).mulScalar(s);
+            const z = r.rotate(Vec3(T).z_axis).mulScalar(s);
+            return Self.init(
+                Vec4(T).initVec3(x, 0),
+                Vec4(T).initVec3(y, 0),
+                Vec4(T).initVec3(z, 0),
+                Vec4(T).initVec3(t, 1),
+            );
         }
 
         pub fn initTransScale(t: Vec3(T), s: Vec3(T)) Self {
             return Self.init(
-                Vec4(T).init(s.x, 0.0, 0.0, 0.0),
-                Vec4(T).init(0.0, s.y, 0.0, 0.0),
-                Vec4(T).init(0.0, 0.0, s.z, 0.0),
-                Vec4(T).init(t.x, t.y, t.z, 1.0),
+                Vec4(T).init(s.x, 0, 0, 0),
+                Vec4(T).init(0.0, s.y, 0, 0),
+                Vec4(T).init(0, 0, s.z, 0),
+                Vec4(T).initVec3(t, 1),
             );
         }
 
@@ -107,8 +146,11 @@ pub fn Mat4(comptime T: type) type {
         }
 
         pub fn extractScale(self: Self) Vec3(T) {
-            _ = self;
-            @compileError("not implemented");
+            return Vec3(T).init(
+                Vec3(T).initVec4(self.x).len(),
+                Vec3(T).initVec4(self.y).len(),
+                Vec3(T).initVec4(self.z).len(),
+            );
         }
 
         pub fn extractTransRotScale(self: Self) struct { Vec3(T), Quat(T), Vec3(T) } {
@@ -129,6 +171,10 @@ pub fn Mat4(comptime T: type) type {
 
         pub fn extractRow3(self: Self) Vec4(T) {
             return Vec4(T).init(self.x.w, self.y.w, self.z.w, self.w.w);
+        }
+
+        pub fn extractMat3(self: Self) Mat3(T) {
+            return Mat3(T).init(Vec3(T).initVec4(self.x), Vec3(T).initVec4(self.y), Vec3(T).initVec4(self.z));
         }
 
         pub fn xformPoint(self: Self, p: Vec3(T)) Vec3(T) {

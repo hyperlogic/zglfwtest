@@ -2,6 +2,9 @@ const std = @import("std");
 const Vec3 = @import("vec3.zig").Vec3;
 const Quat = @import("quat.zig").Quat;
 
+pub const Mat3f = Mat3(f32);
+pub const Mat3d = Mat3(f64);
+
 pub fn Mat3(comptime T: type) type {
     const type_info = @typeInfo(T);
     switch (type_info) {
@@ -28,18 +31,24 @@ pub fn Mat3(comptime T: type) type {
         }
 
         pub fn initRot(r: Quat(T)) Self {
-            _ = r;
-            @compileError("not implemented");
+            const x = r.rotate(Vec3(T).x_axis);
+            const y = r.rotate(Vec3(T).y_axis);
+            const z = r.rotate(Vec3(T).z_axis);
+            return Self.init(x, y, z);
         }
 
         pub fn initRotScale(r: Quat(T), s: Vec3(T)) Self {
-            _ = .{ r, s };
-            @compileError("not implemented");
+            const x = r.rotate(Vec3(T).x_axis).mulScalar(s.x);
+            const y = r.rotate(Vec3(T).y_axis).mulScalar(s.y);
+            const z = r.rotate(Vec3(T).z_axis).mulScalar(s.z);
+            return Self.init(x, y, z);
         }
 
         pub fn initRotUniformScale(r: Quat(T), s: T) Self {
-            _ = .{ r, s };
-            @compileError("not implemented");
+            const x = r.rotate(Vec3(T).x_axis).mulScalar(s);
+            const y = r.rotate(Vec3(T).y_axis).mulScalar(s);
+            const z = r.rotate(Vec3(T).z_axis).mulScalar(s);
+            return Self.init(x, y, z);
         }
 
         pub fn initScale(s: Vec3(T)) Self {
@@ -70,8 +79,7 @@ pub fn Mat3(comptime T: type) type {
         }
 
         pub fn extractScale(self: Self) Vec3(T) {
-            _ = self;
-            @compileError("not implemented");
+            return Vec3(T).init(self.x.len(), self.y.len(), self.z.len());
         }
 
         pub fn extractRotScale(self: Self) struct { Quat(T), Vec3(T) } {

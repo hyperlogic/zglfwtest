@@ -1,4 +1,8 @@
 const std = @import("std");
+const Vec4 = @import("vec4.zig").Vec4;
+
+pub const Vec3f = Vec3(f32);
+pub const Vec3d = Vec3(f64);
 
 pub fn Vec3(comptime T: type) type {
     const type_info = @typeInfo(T);
@@ -22,6 +26,10 @@ pub fn Vec3(comptime T: type) type {
 
         pub fn init(x: T, y: T, z: T) Self {
             return Self{ .x = x, .y = y, .z = z };
+        }
+
+        pub fn initVec4(v: Vec4(T)) Self {
+            return Self.init(v.x, v.y, v.z);
         }
 
         pub fn add(self: Self, other: Self) Self {
@@ -50,6 +58,14 @@ pub fn Vec3(comptime T: type) type {
 
         pub fn dot(self: Self, other: Self) T {
             return self.x * other.x + self.y * other.y + self.z * other.z;
+        }
+
+        pub fn cross(self: Self, other: Self) Self {
+            return Self.init(
+                self.y * other.z - self.z * other.y,
+                self.z * other.x - self.x * other.z,
+                self.x * other.y - self.y * other.x,
+            );
         }
 
         pub fn len(self: Self) T {
