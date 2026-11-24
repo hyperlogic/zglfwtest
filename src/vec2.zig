@@ -25,6 +25,10 @@ pub fn Vec2(comptime T: type) type {
             return Self{ .x = x, .y = y };
         }
 
+        pub fn neg(self: Self) Self {
+            return Self.init(-self.x, -self.y);
+        }
+
         pub fn add(self: Self, other: Self) Self {
             return Self.init(self.x + other.x, self.y + other.y);
         }
@@ -83,35 +87,42 @@ pub fn Vec2(comptime T: type) type {
 }
 
 test "Vec2 compiles" {
-    std.testing.refAllDecls(Vec2(f32));
+    std.testing.refAllDecls(Vec2f);
+}
+
+test "Vec2 neg" {
+    const a = Vec2f.init(1.0, 2.0);
+    const c = a.neg();
+    try std.testing.expectApproxEqAbs(@as(f32, -1.0), c.x, 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, -2.0), c.y, 1e-5);
 }
 
 test "Vec2 add" {
-    const a = Vec2(f32).init(1.0, 2.0);
-    const b = Vec2(f32).init(2.0, 3.0);
+    const a = Vec2f.init(1.0, 2.0);
+    const b = Vec2f.init(2.0, 3.0);
     const c = a.add(b);
     try std.testing.expectApproxEqAbs(@as(f32, 3.0), c.x, 1e-5);
     try std.testing.expectApproxEqAbs(@as(f32, 5.0), c.y, 1e-5);
 }
 
 test "Vec2 sub" {
-    const a = Vec2(f32).init(1.0, 2.0);
-    const b = Vec2(f32).init(2.0, 3.0);
+    const a = Vec2f.init(1.0, 2.0);
+    const b = Vec2f.init(2.0, 3.0);
     const c = a.sub(b);
     try std.testing.expectApproxEqAbs(@as(f32, -1.0), c.x, 1e-5);
     try std.testing.expectApproxEqAbs(@as(f32, -1.0), c.y, 1e-5);
 }
 
 test "Vec2 mul" {
-    const a = Vec2(f32).init(1.0, 2.0);
-    const b = Vec2(f32).init(2.0, 3.0);
+    const a = Vec2f.init(1.0, 2.0);
+    const b = Vec2f.init(2.0, 3.0);
     const c = a.mul(b);
     try std.testing.expectApproxEqAbs(@as(f32, 2.0), c.x, 1e-5);
     try std.testing.expectApproxEqAbs(@as(f32, 6.0), c.y, 1e-5);
 }
 
 test "Vec2 mulScalar" {
-    const a = Vec2(f32).init(1.0, 2.0);
+    const a = Vec2f.init(1.0, 2.0);
     const b = @as(f32, 3.0);
     const c = a.mulScalar(b);
     try std.testing.expectApproxEqAbs(@as(f32, 3.0), c.x, 1e-5);
@@ -119,15 +130,15 @@ test "Vec2 mulScalar" {
 }
 
 test "Vec2 div" {
-    const a = Vec2(f32).init(1.0, 2.0);
-    const b = Vec2(f32).init(2.0, 3.0);
+    const a = Vec2f.init(1.0, 2.0);
+    const b = Vec2f.init(2.0, 3.0);
     const c = a.div(b);
     try std.testing.expectApproxEqAbs(@as(f32, 0.5), c.x, 1e-5);
     try std.testing.expectApproxEqAbs(@as(f32, 0.6666666666), c.y, 1e-5);
 }
 
 test "Vec2 divScalar" {
-    const a = Vec2(f32).init(1.0, 2.0);
+    const a = Vec2f.init(1.0, 2.0);
     const b = @as(f32, 3.0);
     const c = a.divScalar(b);
     try std.testing.expectApproxEqAbs(@as(f32, 0.333333333), c.x, 1e-5);
@@ -135,39 +146,39 @@ test "Vec2 divScalar" {
 }
 
 test "Vec2 dot" {
-    const a = Vec2(f32).init(1.0, 2.0);
-    const b = Vec2(f32).init(2.0, 3.0);
+    const a = Vec2f.init(1.0, 2.0);
+    const b = Vec2f.init(2.0, 3.0);
     const c = a.dot(b);
     try std.testing.expectApproxEqAbs(@as(f32, 8.0), c, 1e-5);
 }
 
 test "Vec2 len" {
-    const a = Vec2(f32).init(1.0, 2.0);
+    const a = Vec2f.init(1.0, 2.0);
     const len = a.len();
     try std.testing.expectApproxEqAbs(@as(f32, @sqrt(5.0)), len, 1e-5);
 }
 
 test "Vec2 unit" {
-    const a = Vec2(f32).init(1.0, 2.0);
+    const a = Vec2f.init(1.0, 2.0);
     const c = a.unit();
     try std.testing.expectApproxEqAbs(@as(f32, 1.0 / @sqrt(5.0)), c.x, 1e-5);
     try std.testing.expectApproxEqAbs(@as(f32, 2.0 / @sqrt(5.0)), c.y, 1e-5);
     try std.testing.expectApproxEqAbs(c.len(), 1.0, 1e-5);
 
-    const b = Vec2(f32).zero;
+    const b = Vec2f.zero;
     const d = b.unit();
     try std.testing.expect(std.math.isNan(d.x));
     try std.testing.expect(std.math.isNan(d.y));
 }
 
 test "Vec2 safeUnit" {
-    const safe = Vec2(f32).init(2.0, 0.0);
-    const a = Vec2(f32).init(1.0, 2.0);
+    const safe = Vec2f.init(2.0, 0.0);
+    const a = Vec2f.init(1.0, 2.0);
     const c = a.safeUnit(safe);
     try std.testing.expectApproxEqAbs(@as(f32, 1.0 / @sqrt(5.0)), c.x, 1e-5);
     try std.testing.expectApproxEqAbs(@as(f32, 2.0 / @sqrt(5.0)), c.y, 1e-5);
     try std.testing.expectApproxEqAbs(c.len(), 1.0, 1e-5);
-    const b = Vec2(f32).zero;
+    const b = Vec2f.zero;
     const d = b.safeUnit(safe);
     try std.testing.expectApproxEqAbs(@as(f32, 1.0), d.x, 1e-5);
     try std.testing.expectApproxEqAbs(@as(f32, 0.0), d.y, 1e-5);
@@ -177,7 +188,7 @@ test "Vec2 safeUnit" {
 test "Vec2 randomUnit" {
     var prng = std.Random.DefaultPrng.init(42);
     for (0..10) |_| {
-        const v = Vec2(f32).randomUnit(prng.random());
+        const v = Vec2f.randomUnit(prng.random());
         try std.testing.expectApproxEqAbs(@as(f32, 1.0), v.dot(v), 1e-5);
     }
 }
@@ -187,22 +198,22 @@ test "Vec2 fuzzyEqual" {
     const small_eps = @as(f32, eps / 2.0);
     const large_eps = @as(f32, eps * 2.0);
 
-    const a = Vec2(f32).init(1.0, 2.0);
+    const a = Vec2f.init(1.0, 2.0);
 
-    const a_p_eps_x = a.add(Vec2(f32).init(eps, 0.0));
-    const a_s_eps_x = a.sub(Vec2(f32).init(eps, 0.0));
-    const a_p_eps_y = a.add(Vec2(f32).init(0.0, eps));
-    const a_s_eps_y = a.sub(Vec2(f32).init(0.0, eps));
+    const a_p_eps_x = a.add(Vec2f.init(eps, 0.0));
+    const a_s_eps_x = a.sub(Vec2f.init(eps, 0.0));
+    const a_p_eps_y = a.add(Vec2f.init(0.0, eps));
+    const a_s_eps_y = a.sub(Vec2f.init(0.0, eps));
 
-    const a_p_small_eps_x = a.add(Vec2(f32).init(small_eps, 0.0));
-    const a_s_small_eps_x = a.sub(Vec2(f32).init(small_eps, 0.0));
-    const a_p_small_eps_y = a.add(Vec2(f32).init(0.0, small_eps));
-    const a_s_small_eps_y = a.sub(Vec2(f32).init(0.0, small_eps));
+    const a_p_small_eps_x = a.add(Vec2f.init(small_eps, 0.0));
+    const a_s_small_eps_x = a.sub(Vec2f.init(small_eps, 0.0));
+    const a_p_small_eps_y = a.add(Vec2f.init(0.0, small_eps));
+    const a_s_small_eps_y = a.sub(Vec2f.init(0.0, small_eps));
 
-    const a_p_large_eps_x = a.add(Vec2(f32).init(large_eps, 0.0));
-    const a_s_large_eps_x = a.sub(Vec2(f32).init(large_eps, 0.0));
-    const a_p_large_eps_y = a.add(Vec2(f32).init(0.0, large_eps));
-    const a_s_large_eps_y = a.sub(Vec2(f32).init(0.0, large_eps));
+    const a_p_large_eps_x = a.add(Vec2f.init(large_eps, 0.0));
+    const a_s_large_eps_x = a.sub(Vec2f.init(large_eps, 0.0));
+    const a_p_large_eps_y = a.add(Vec2f.init(0.0, large_eps));
+    const a_s_large_eps_y = a.sub(Vec2f.init(0.0, large_eps));
 
     try std.testing.expect(a.fuzzyEqual(a, eps));
 
