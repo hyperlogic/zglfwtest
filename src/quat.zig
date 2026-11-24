@@ -1,7 +1,8 @@
 const std = @import("std");
-const Vec3 = @import("vec3.zig").Vec3;
 const Mat3 = @import("mat3.zig").Mat3;
 const Mat4 = @import("mat4.zig").Mat4;
+const Vec3 = @import("vec3.zig").Vec3;
+const Vec4 = @import("vec4.zig").Vec4;
 
 pub const Quatf = Quat(f32);
 pub const Quatd = Quat(f64);
@@ -170,15 +171,15 @@ pub fn Quat(comptime T: type) type {
         pub fn exp(self: Self) Self {
             const img = self.im();
             const angle = img.len();
-            const s: T = if (angle > 0.0001) @sin(angle / 2) / angle else 0.5;
+            const s: T = if (angle > 0.0001) @sin(angle) / angle else 1.0;
             const n = img.mulScalar(s);
-            return Self.init(n.x, n.y, n.z, @cos(angle / 2));
+            return Self.init(n.x, n.y, n.z, @cos(angle));
         }
 
         pub fn log(self: Self) Self {
             const img = self.im();
             const s = img.len();
-            const scale: T = if (s > 0.0001) 2.0 * std.math.atan2(s, self.w) / s else 2.0 / self.w;
+            const scale: T = if (s > 0.0001) std.math.atan2(s, self.w) / s else self.w;
             const v = img.mulScalar(scale);
             return Self.init(v.x, v.y, v.z, 0);
         }
@@ -221,7 +222,7 @@ pub fn Quat(comptime T: type) type {
                 @abs(self.w - o.w) <= eps);
         }
 
-        pub fn lerp(self: Self, other: Self, alpha: T) Self {
+        pub fn safeMix(self: Self, other: Self, alpha: T) Self {
             const t = std.math.clamp(alpha, 0.0, 1.0);
             const o = if (self.dot(other) < 0.0) other.neg() else other;
             return Self.init(
@@ -233,7 +234,7 @@ pub fn Quat(comptime T: type) type {
         }
 
         pub fn nlerp(self: Self, other: Self, alpha: T) Self {
-            return self.lerp(other, alpha).safeUnit(other);
+            return self.safeMix(other, alpha).safeUnit(other);
         }
 
         pub fn slerp(self: Self, other: Self, alpha: T) Self {
@@ -261,6 +262,7 @@ pub fn Quat(comptime T: type) type {
                 a * self.w + b * other.w,
             );
         }
+
         pub fn extractAxisAngle(self: Self) struct { Vec3(T), T } {
             const s = self.im().len(); // sin(angle/2)
             if (s < 1e-6) {
@@ -279,7 +281,7 @@ pub fn Quat(comptime T: type) type {
             const twist_im = d.mulScalar(d.dot(axis_of_rot));
 
             // and real compoent is relatively proportioanl to rotation's real component
-            const twist = Quat(T).init(self.w, twist_im.x, twist_im.y, twist_im.z).unit();
+            const twist = Quat(T).init(twist_im.x, twist_im.y, twist_im.z, self.w).unit();
 
             // once twist is knonw we can solve for wsing.
             // self = swing * rot -> swing = self * ~twist
@@ -301,15 +303,366 @@ test "Quat compiles" {
 test "Quat initAxisAngle" {
     const Vec3f = Vec3(f32);
     const eps: f32 = 0.0001;
+    const s2o2: f32 = @sqrt(2.0) / 2.0;
     const cases = [_]struct { Quatf, Vec3f, f32 }{
+        // ident
         .{ Quatf.init(0, 0, 0, 1), Vec3f.init(1, 0, 0), 0 },
         .{ Quatf.init(0, 0, 0, 1), Vec3f.init(0, 1, 0), 0 },
         .{ Quatf.init(0, 0, 0, 1), Vec3f.init(0, 1, 0), 0 },
+
+        // 90, 180, 270 rot about x
+        .{ Quatf.init(s2o2, 0, 0, s2o2), Vec3f.init(1, 0, 0), std.math.pi / 2.0 },
+        .{ Quatf.init(1, 0, 0, 0), Vec3f.init(1, 0, 0), std.math.pi },
+        .{ Quatf.init(s2o2, 0, 0, -s2o2), Vec3f.init(1, 0, 0), (3.0 * std.math.pi) / 2.0 },
+
+        // 90, 180, 270 rot about y
+        .{ Quatf.init(0, s2o2, 0, s2o2), Vec3f.init(0, 1, 0), std.math.pi / 2.0 },
+        .{ Quatf.init(0, 1, 0, 0), Vec3f.init(0, 1, 0), std.math.pi },
+        .{ Quatf.init(0, s2o2, 0, -s2o2), Vec3f.init(0, 1, 0), (3.0 * std.math.pi) / 2.0 },
+
+        // 90, 180, 270 rot about z
+        .{ Quatf.init(0, 0, s2o2, s2o2), Vec3f.init(0, 0, 1), std.math.pi / 2.0 },
+        .{ Quatf.init(0, 0, 1, 0), Vec3f.init(0, 0, 1), std.math.pi },
+        .{ Quatf.init(0, 0, s2o2, -s2o2), Vec3f.init(0, 0, 1), (3.0 * std.math.pi) / 2.0 },
     };
 
     for (cases) |case| {
-        const q, const axis, const angle = case;
-        const pass = q.fuzzyEqual(Quatf.initAxisAngle(axis, angle), eps);
+        const expected, const axis, const angle = case;
+        const actual = Quatf.initAxisAngle(axis, angle);
+        const pass = expected.fuzzyEqual(actual, eps);
+        if (!pass) {
+            std.debug.print("case failed {any}, actual = {any}\n", .{ case, actual });
+        }
+        try std.testing.expect(pass);
+    }
+}
+
+test "Quat initMat4" {
+    const Vec3f = Vec3(f32);
+    const Vec4f = Vec4(f32);
+    const Mat4f = Mat4(f32);
+    const eps: f32 = 0.0001;
+    const s2o2: f32 = @sqrt(2.0) / 2.0;
+    const cases = [_]Quatf{
+        // ident
+        Quatf.init(0, 0, 0, 1),
+
+        // 90, 180, 270 rot about x
+        Quatf.init(s2o2, 0, 0, s2o2),
+        Quatf.init(1, 0, 0, 0),
+        Quatf.init(s2o2, 0, 0, -s2o2),
+
+        // 90, 180, 270 rot about y
+        Quatf.init(0, s2o2, 0, s2o2),
+        Quatf.init(0, 1, 0, 0),
+        Quatf.init(0, s2o2, 0, -s2o2),
+
+        // 90, 180, 270 rot about z
+        Quatf.init(0, 0, s2o2, s2o2),
+        Quatf.init(0, 0, 1, 0),
+        Quatf.init(0, 0, s2o2, -s2o2),
+    };
+
+    for (cases) |case| {
+        const expected = case;
+        const x = case.rotate(Vec3f.x_axis);
+        const y = case.rotate(Vec3f.y_axis);
+        const z = case.rotate(Vec3f.z_axis);
+        const m4 = Mat4f.init(Vec4f.initVec3(x, 0), Vec4f.initVec3(y, 0), Vec4f.initVec3(z, 0), Vec4f.init(0, 0, 0, 1));
+        const actual = Quatf.initMat4(m4);
+        const pass = expected.fuzzyEqual(actual, eps);
+        if (!pass) {
+            std.debug.print("case failed {any}, actual = {any}\n", .{ case, actual });
+        }
+        try std.testing.expect(pass);
+    }
+}
+
+test "Quat initMat3" {
+    const Vec3f = Vec3(f32);
+    const Mat3f = Mat3(f32);
+    const eps: f32 = 0.0001;
+    const s2o2: f32 = @sqrt(2.0) / 2.0;
+    const cases = [_]Quatf{
+        // ident
+        Quatf.init(0, 0, 0, 1),
+
+        // 90, 180, 270 rot about x
+        Quatf.init(s2o2, 0, 0, s2o2),
+        Quatf.init(1, 0, 0, 0),
+        Quatf.init(s2o2, 0, 0, -s2o2),
+
+        // 90, 180, 270 rot about y
+        Quatf.init(0, s2o2, 0, s2o2),
+        Quatf.init(0, 1, 0, 0),
+        Quatf.init(0, s2o2, 0, -s2o2),
+
+        // 90, 180, 270 rot about z
+        Quatf.init(0, 0, s2o2, s2o2),
+        Quatf.init(0, 0, 1, 0),
+        Quatf.init(0, 0, s2o2, -s2o2),
+    };
+
+    for (cases) |case| {
+        const expected = case;
+        const x = case.rotate(Vec3f.x_axis);
+        const y = case.rotate(Vec3f.y_axis);
+        const z = case.rotate(Vec3f.z_axis);
+        const m3 = Mat3f.init(x, y, z);
+        const actual = Quatf.initMat3(m3);
+        const pass = expected.fuzzyEqual(actual, eps);
+        if (!pass) {
+            std.debug.print("case failed {any}, actual = {any}\n", .{ case, actual });
+        }
+        try std.testing.expect(pass);
+    }
+}
+
+test "Quat initVectors" {
+    const Vec3f = Vec3(f32);
+    const eps: f32 = 0.0001;
+    const s2o2: f32 = @sqrt(2.0) / 2.0;
+    const cases = [_]struct { Quatf, Vec3f, Vec3f }{
+        // ident
+        .{ Quatf.init(0, 0, 0, 1), Vec3f.init(1, 0, 0), Vec3f.init(1, 0, 0) },
+        .{ Quatf.init(0, 0, 0, 1), Vec3f.init(0, 1, 0), Vec3f.init(0, 1, 0) },
+
+        // 90, 270 rot about x
+        .{ Quatf.init(s2o2, 0, 0, s2o2), Vec3f.y_axis, Vec3f.z_axis },
+        .{ Quatf.init(s2o2, 0, 0, -s2o2), Vec3f.y_axis, Vec3f.z_axis.neg() },
+
+        // 90, 270 rot about y
+        .{ Quatf.init(0, s2o2, 0, s2o2), Vec3f.x_axis, Vec3f.z_axis.neg() },
+        .{ Quatf.init(0, s2o2, 0, -s2o2), Vec3f.x_axis, Vec3f.z_axis },
+
+        // 90, 270 rot about z
+        .{ Quatf.init(0, 0, s2o2, s2o2), Vec3f.x_axis, Vec3f.y_axis },
+        .{ Quatf.init(0, 0, s2o2, -s2o2), Vec3f.x_axis, Vec3f.y_axis.neg() },
+    };
+
+    for (cases) |case| {
+        const expected, const from, const to = case;
+        const actual = Quatf.initVectors(from, to);
+        const pass = expected.fuzzyEqual(actual, eps);
+        if (!pass) {
+            std.debug.print("case failed {any}, actual = {any}\n", .{ case, actual });
+        }
+        try std.testing.expect(pass);
+    }
+}
+
+test "Quat add" {
+    const a = Quatf.init(1.0, 2.0, 3.0, 4.0);
+    const b = Quatf.init(5.0, 6.0, 7.0, 8.0);
+    const c = a.add(b);
+    try std.testing.expectApproxEqAbs(@as(f32, 6.0), c.x, 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, 8.0), c.y, 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, 10.0), c.z, 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, 12.0), c.w, 1e-5);
+}
+
+test "Quat sub" {
+    const a = Quatf.init(1.0, 2.0, 3.0, 4.0);
+    const b = Quatf.init(5.0, 6.0, 7.0, 8.0);
+    const c = a.sub(b);
+    try std.testing.expectApproxEqAbs(@as(f32, -4.0), c.x, 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, -4.0), c.y, 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, -4.0), c.z, 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, -4.0), c.w, 1e-5);
+}
+
+test "Quat neg" {
+    const a = Quatf.init(1.0, 2.0, 3.0, 4.0);
+    const c = a.neg();
+    try std.testing.expectApproxEqAbs(@as(f32, -1.0), c.x, 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, -2.0), c.y, 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, -3.0), c.z, 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, -4.0), c.w, 1e-5);
+}
+
+fn _testQuatMul(a: Quatf, b: Quatf) Quatf {
+    return Quatf.init(
+        a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
+        a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
+        a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
+        a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z,
+    );
+}
+
+test "Quat mul" {
+    const eps: f32 = 0.0001;
+    const s2o2: f32 = @sqrt(2.0) / 2.0;
+    const cases = [_]Quatf{
+        // ident
+        Quatf.init(0, 0, 0, 1),
+
+        // 90, 180, 270 rot about x
+        Quatf.init(s2o2, 0, 0, s2o2),
+        Quatf.init(1, 0, 0, 0),
+        Quatf.init(s2o2, 0, 0, -s2o2),
+
+        // 90, 180, 270 rot about y
+        Quatf.init(0, s2o2, 0, s2o2),
+        Quatf.init(0, 1, 0, 0),
+        Quatf.init(0, s2o2, 0, -s2o2),
+
+        // 90, 180, 270 rot about z
+        Quatf.init(0, 0, s2o2, s2o2),
+        Quatf.init(0, 0, 1, 0),
+        Quatf.init(0, 0, s2o2, -s2o2),
+    };
+
+    for (cases) |a| {
+        for (cases) |b| {
+            const expected = _testQuatMul(a, b);
+            const actual = a.mul(b);
+            const pass = expected.fuzzyEqual(actual, eps);
+            if (!pass) {
+                std.debug.print("case failed {any} * {any}, actual = {any}, expected = {any}\n", .{ a, b, actual, expected });
+            }
+            try std.testing.expect(pass);
+        }
+    }
+}
+
+test "Quat mulScalar" {
+    const a = Quatf.init(1.0, 2.0, 3.0, 4.0);
+    const b = @as(f32, 5.0);
+    const c = a.mulScalar(b);
+    try std.testing.expectApproxEqAbs(@as(f32, 5.0), c.x, 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, 10.0), c.y, 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, 15.0), c.z, 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, 20.0), c.w, 1e-5);
+}
+
+test "Quat divScalar" {
+    const a = Quatf.init(1.0, 2.0, 3.0, 4.0);
+    const b = @as(f32, 5.0);
+    const c = a.divScalar(b);
+    try std.testing.expectApproxEqAbs(@as(f32, 1.0 / 5.0), c.x, 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, 2.0 / 5.0), c.y, 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, 3.0 / 5.0), c.z, 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, 4.0 / 5.0), c.w, 1e-5);
+}
+
+test "Quat im" {
+    const a = Quatf.init(1.0, 2.0, 3.0, 4.0);
+    const b = a.im();
+    try std.testing.expectApproxEqAbs(@as(f32, 1.0), b.x, 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, 2.0), b.y, 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, 3.0), b.z, 1e-5);
+}
+
+test "Quat exp & log" {
+    const eps: f32 = 0.0001;
+    const s2o2: f32 = @sqrt(2.0) / 2.0;
+    const cases = [_]struct { Quatf, Quatf }{
+        // ident
+        .{ Quatf.init(0, 0, 0, 1), Quatf.init(0, 0, 0, 0) },
+
+        // 90, 180, 270 rot about x
+        .{ Quatf.init(s2o2, 0, 0, s2o2), Quatf.init(std.math.degreesToRadians(90) / 2.0, 0, 0, 0) },
+        .{ Quatf.init(1, 0, 0, 0), Quatf.init(std.math.degreesToRadians(180) / 2.0, 0, 0, 0) },
+        .{ Quatf.init(s2o2, 0, 0, -s2o2), Quatf.init(std.math.degreesToRadians(270) / 2.0, 0, 0, 0) },
+
+        // 90, 180, 270 rot about y
+        .{ Quatf.init(0, s2o2, 0, s2o2), Quatf.init(0, std.math.degreesToRadians(90) / 2.0, 0, 0) },
+        .{ Quatf.init(0, 1, 0, 0), Quatf.init(0, std.math.degreesToRadians(180) / 2.0, 0, 0) },
+        .{ Quatf.init(0, s2o2, 0, -s2o2), Quatf.init(0, std.math.degreesToRadians(270) / 2.0, 0, 0) },
+
+        // 90, 180, 270 rot about z
+        .{ Quatf.init(0, 0, s2o2, s2o2), Quatf.init(0, 0, std.math.degreesToRadians(90) / 2.0, 0) },
+        .{ Quatf.init(0, 0, 1, 0), Quatf.init(0, 0, std.math.degreesToRadians(180) / 2.0, 0) },
+        .{ Quatf.init(0, 0, s2o2, -s2o2), Quatf.init(0, 0, std.math.degreesToRadians(270) / 2.0, 0) },
+    };
+
+    for (cases) |case| {
+        const q, const q_exp = case;
+        const pass_log = q_exp.fuzzyEqual(q.log(), eps);
+        const pass_exp = q.fuzzyEqual(q_exp.exp(), eps);
+        if (!pass_log or !pass_exp) {
+            std.debug.print("case failed {any}\n q_exp = {any}\n q_exp.exp() = {any}\n", .{ case, q.log(), q_exp.exp() });
+        }
+        try std.testing.expect(pass_log and pass_exp);
+    }
+}
+
+test "Quat dot" {
+    const a = Quatf.init(1.0, 2.0, 3.0, 4.0);
+    const b = Quatf.init(5.0, 6.0, 7.0, 8.0);
+    const c = a.dot(b);
+    try std.testing.expectApproxEqAbs(@as(f32, 70.0), c, 1e-5);
+}
+
+test "Quat len" {
+    const a = Quatf.init(1.0, 2.0, 3.0, 4.0);
+    const len = a.len();
+    try std.testing.expectApproxEqAbs(@as(f32, @sqrt(30.0)), len, 1e-5);
+}
+
+test "Quat unit" {
+    const a = Quatf.init(1.0, 2.0, 3.0, 4.0);
+    const c = a.unit();
+    try std.testing.expectApproxEqAbs(@as(f32, 1.0 / @sqrt(30.0)), c.x, 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, 2.0 / @sqrt(30.0)), c.y, 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, 3.0 / @sqrt(30.0)), c.z, 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, 4.0 / @sqrt(30.0)), c.w, 1e-5);
+    try std.testing.expectApproxEqAbs(c.len(), 1.0, 1e-5);
+}
+
+test "Quat safeUnit" {
+    const safe = Quatf.init(2.0, 0.0, 0.0, 0.0);
+    const a = Quatf.init(1.0, 2.0, 3.0, 4.0);
+    const c = a.safeUnit(safe);
+    try std.testing.expectApproxEqAbs(@as(f32, 1.0 / @sqrt(30.0)), c.x, 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, 2.0 / @sqrt(30.0)), c.y, 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, 3.0 / @sqrt(30.0)), c.z, 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, 4.0 / @sqrt(30.0)), c.w, 1e-5);
+    try std.testing.expectApproxEqAbs(c.len(), 1.0, 1e-5);
+    const b = Quatf.init(0, 0, 0, 0);
+    const d = b.safeUnit(safe);
+    try std.testing.expectApproxEqAbs(@as(f32, 1.0), d.x, 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, 0.0), d.y, 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, 0.0), d.z, 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, 0.0), d.w, 1e-5);
+    try std.testing.expectApproxEqAbs(d.len(), 1.0, 1e-5);
+}
+
+test "Quat conj" {
+    const a = Quatf.init(1.0, 2.0, 3.0, 4.0);
+    const c = a.conj();
+    try std.testing.expectApproxEqAbs(@as(f32, -1.0), c.x, 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, -2.0), c.y, 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, -3.0), c.z, 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, 4.0), c.w, 1e-5);
+}
+
+test "Quat inverse" {
+    const eps: f32 = 0.0001;
+    const s2o2: f32 = @sqrt(2.0) / 2.0;
+    const cases = [_]struct { Quatf, Quatf }{
+        // ident
+        .{ Quatf.init(0, 0, 0, 1), Quatf.init(0, 0, 0, 1) },
+
+        // 90, 180, 270 rot about x
+        .{ Quatf.init(s2o2, 0, 0, s2o2), Quatf.init(-s2o2, 0, 0, s2o2) },
+        .{ Quatf.init(1, 0, 0, 0), Quatf.init(-1, 0, 0, 0) },
+        .{ Quatf.init(s2o2, 0, 0, -s2o2), Quatf.init(-s2o2, 0, 0, -s2o2) },
+
+        // 90, 180, 270 rot about y
+        .{ Quatf.init(0, s2o2, 0, s2o2), Quatf.init(0, -s2o2, 0, s2o2) },
+        .{ Quatf.init(0, 1, 0, 0), Quatf.init(0, -1, 0, 0) },
+        .{ Quatf.init(0, s2o2, 0, -s2o2), Quatf.init(0, -s2o2, 0, -s2o2) },
+
+        // 90, 180, 270 rot about z
+        .{ Quatf.init(0, 0, s2o2, s2o2), Quatf.init(0, 0, -s2o2, s2o2) },
+        .{ Quatf.init(0, 0, 1, 0), Quatf.init(0, 0, -1, 0) },
+        .{ Quatf.init(0, 0, s2o2, -s2o2), Quatf.init(0, 0, -s2o2, -s2o2) },
+    };
+
+    for (cases) |case| {
+        const q, const q_inv = case;
+        const pass = q_inv.fuzzyEqual(q.inverse(), eps);
         if (!pass) {
             std.debug.print("case failed {any}\n", .{case});
         }
@@ -317,52 +670,301 @@ test "Quat initAxisAngle" {
     }
 }
 
-test "Quat initMat4" {}
+test "Quat fuzzyEqual" {
+    const eps = @as(f32, 0.0625);
+    const small_eps = @as(f32, eps / 2.0);
+    const large_eps = @as(f32, eps * 2.0);
 
-test "Quat initMat3" {}
+    const a = Quatf.init(1.0, 2.0, 3.0, 4.0);
 
-test "Quat initVectors" {}
+    const a_p_eps_x = a.add(Quatf.init(eps, 0.0, 0.0, 0.0));
+    const a_s_eps_x = a.sub(Quatf.init(eps, 0.0, 0.0, 0.0));
+    const a_p_eps_y = a.add(Quatf.init(0.0, eps, 0.0, 0.0));
+    const a_s_eps_y = a.sub(Quatf.init(0.0, eps, 0.0, 0.0));
+    const a_p_eps_z = a.add(Quatf.init(0.0, 0.0, eps, 0.0));
+    const a_s_eps_z = a.sub(Quatf.init(0.0, 0.0, eps, 0.0));
+    const a_p_eps_w = a.add(Quatf.init(0.0, 0.0, 0.0, eps));
+    const a_s_eps_w = a.sub(Quatf.init(0.0, 0.0, 0.0, eps));
 
-test "Quat add" {}
+    const a_p_small_eps_x = a.add(Quatf.init(small_eps, 0.0, 0.0, 0.0));
+    const a_s_small_eps_x = a.sub(Quatf.init(small_eps, 0.0, 0.0, 0.0));
+    const a_p_small_eps_y = a.add(Quatf.init(0.0, small_eps, 0.0, 0.0));
+    const a_s_small_eps_y = a.sub(Quatf.init(0.0, small_eps, 0.0, 0.0));
+    const a_p_small_eps_z = a.add(Quatf.init(0.0, 0.0, small_eps, 0.0));
+    const a_s_small_eps_z = a.sub(Quatf.init(0.0, 0.0, small_eps, 0.0));
+    const a_p_small_eps_w = a.add(Quatf.init(0.0, 0.0, 0.0, small_eps));
+    const a_s_small_eps_w = a.sub(Quatf.init(0.0, 0.0, 0.0, small_eps));
 
-test "Quat sub" {}
+    const a_p_large_eps_x = a.add(Quatf.init(large_eps, 0.0, 0.0, 0.0));
+    const a_s_large_eps_x = a.sub(Quatf.init(large_eps, 0.0, 0.0, 0.0));
+    const a_p_large_eps_y = a.add(Quatf.init(0.0, large_eps, 0.0, 0.0));
+    const a_s_large_eps_y = a.sub(Quatf.init(0.0, large_eps, 0.0, 0.0));
+    const a_p_large_eps_z = a.add(Quatf.init(0.0, 0.0, large_eps, 0.0));
+    const a_s_large_eps_z = a.sub(Quatf.init(0.0, 0.0, large_eps, 0.0));
+    const a_p_large_eps_w = a.add(Quatf.init(0.0, 0.0, 0.0, large_eps));
+    const a_s_large_eps_w = a.sub(Quatf.init(0.0, 0.0, 0.0, large_eps));
 
-test "Quat neg" {}
+    try std.testing.expect(a.fuzzyEqual(a, eps));
 
-test "Quat mul" {}
+    try std.testing.expect(a.fuzzyEqual(a_p_eps_x, eps));
+    try std.testing.expect(a.fuzzyEqual(a_s_eps_x, eps));
+    try std.testing.expect(a.fuzzyEqual(a_p_eps_y, eps));
+    try std.testing.expect(a.fuzzyEqual(a_s_eps_y, eps));
+    try std.testing.expect(a.fuzzyEqual(a_p_eps_z, eps));
+    try std.testing.expect(a.fuzzyEqual(a_s_eps_z, eps));
+    try std.testing.expect(a.fuzzyEqual(a_p_eps_w, eps));
+    try std.testing.expect(a.fuzzyEqual(a_s_eps_w, eps));
 
-test "Quat mulScalar" {}
+    try std.testing.expect(a.fuzzyEqual(a_p_small_eps_x, eps));
+    try std.testing.expect(a.fuzzyEqual(a_s_small_eps_x, eps));
+    try std.testing.expect(a.fuzzyEqual(a_p_small_eps_y, eps));
+    try std.testing.expect(a.fuzzyEqual(a_s_small_eps_y, eps));
+    try std.testing.expect(a.fuzzyEqual(a_p_small_eps_z, eps));
+    try std.testing.expect(a.fuzzyEqual(a_s_small_eps_z, eps));
+    try std.testing.expect(a.fuzzyEqual(a_p_small_eps_w, eps));
+    try std.testing.expect(a.fuzzyEqual(a_s_small_eps_w, eps));
 
-test "Quat divScalar" {}
+    try std.testing.expect(!a.fuzzyEqual(a_p_large_eps_x, eps));
+    try std.testing.expect(!a.fuzzyEqual(a_s_large_eps_x, eps));
+    try std.testing.expect(!a.fuzzyEqual(a_p_large_eps_y, eps));
+    try std.testing.expect(!a.fuzzyEqual(a_s_large_eps_y, eps));
+    try std.testing.expect(!a.fuzzyEqual(a_p_large_eps_z, eps));
+    try std.testing.expect(!a.fuzzyEqual(a_s_large_eps_z, eps));
+    try std.testing.expect(!a.fuzzyEqual(a_p_large_eps_w, eps));
+    try std.testing.expect(!a.fuzzyEqual(a_s_large_eps_w, eps));
+}
 
-test "Quat im" {}
+fn _testQuatSafeMix(a: Quatf, b: Quatf, alpha: f32) Quatf {
+    const t = std.math.clamp(alpha, 0, 1);
+    const b_flip = if (a.dot(b) < 0.0) b.neg() else b;
+    return Quatf.init(
+        std.math.lerp(a.x, b_flip.x, t),
+        std.math.lerp(a.y, b_flip.y, t),
+        std.math.lerp(a.z, b_flip.z, t),
+        std.math.lerp(a.w, b_flip.w, t),
+    );
+}
 
-test "Quat exp" {}
+test "Quat lerp" {
+    const eps: f32 = 0.0001;
+    const s2o2: f32 = @sqrt(2.0) / 2.0;
+    const cases = [_]Quatf{
+        // ident
+        Quatf.init(0, 0, 0, 1),
 
-test "Quat log" {}
+        // 90, 180, 270 rot about x
+        Quatf.init(s2o2, 0, 0, s2o2),
+        Quatf.init(1, 0, 0, 0),
+        Quatf.init(s2o2, 0, 0, -s2o2),
 
-test "Quat dot" {}
+        // 90, 180, 270 rot about y
+        Quatf.init(0, s2o2, 0, s2o2),
+        Quatf.init(0, 1, 0, 0),
+        Quatf.init(0, s2o2, 0, -s2o2),
 
-test "Quat len" {}
+        // 90, 180, 270 rot about z
+        Quatf.init(0, 0, s2o2, s2o2),
+        Quatf.init(0, 0, 1, 0),
+        Quatf.init(0, 0, s2o2, -s2o2),
+    };
 
-test "Quat unit" {}
+    const alphas = [_]f32{ 0.0, 1.0, 0.5, 0.75, -0.25, 1.25 };
 
-test "Quat safeUnit" {}
+    for (cases) |a| {
+        for (cases) |b| {
+            for (alphas) |alpha| {
+                const expected = _testQuatSafeMix(a, b, alpha);
+                const actual = a.safeMix(b, alpha);
+                const pass = expected.fuzzyEqual(actual, eps);
+                if (!pass) {
+                    std.debug.print("case failed {any}.lerp({any}, {any})\n, actual = {any}, expected = {any}\n", .{ a, b, alpha, actual, expected });
+                }
+                try std.testing.expect(pass);
+            }
+        }
+    }
+}
 
-test "Quat conj" {}
+fn _testQuatNlerp(a: Quatf, b: Quatf, alpha: f32) Quatf {
+    const t = std.math.clamp(alpha, 0, 1);
+    const b_flip = if (a.dot(b) < 0.0) b.neg() else b;
+    var r = Quatf.init(
+        std.math.lerp(a.x, b_flip.x, t),
+        std.math.lerp(a.y, b_flip.y, t),
+        std.math.lerp(a.z, b_flip.z, t),
+        std.math.lerp(a.w, b_flip.w, t),
+    );
 
-test "Quat inverse" {}
+    const len = @sqrt(r.x * r.x + r.y * r.y + r.z * r.z + r.w * r.w);
+    r.x /= len;
+    r.y /= len;
+    r.z /= len;
+    r.w /= len;
+    return r;
+}
 
-test "Quat fuzzyEqual" {}
+test "Quat nlerp" {
+    const eps: f32 = 0.0001;
+    const s2o2: f32 = @sqrt(2.0) / 2.0;
+    const cases = [_]Quatf{
+        // ident
+        Quatf.init(0, 0, 0, 1),
 
-test "Quat lerp" {}
+        // 90, 180, 270 rot about x
+        Quatf.init(s2o2, 0, 0, s2o2),
+        Quatf.init(1, 0, 0, 0),
+        Quatf.init(s2o2, 0, 0, -s2o2),
 
-test "Quat nlerp" {}
+        // 90, 180, 270 rot about y
+        Quatf.init(0, s2o2, 0, s2o2),
+        Quatf.init(0, 1, 0, 0),
+        Quatf.init(0, s2o2, 0, -s2o2),
 
-test "Quat slerp" {}
+        // 90, 180, 270 rot about z
+        Quatf.init(0, 0, s2o2, s2o2),
+        Quatf.init(0, 0, 1, 0),
+        Quatf.init(0, 0, s2o2, -s2o2),
+    };
 
-test "Quat extractSwingTwist" {}
+    const alphas = [_]f32{ 0.0, 1.0, 0.5, 0.75, -0.25, 1.25 };
 
-test "Quat extractAxisAngle" {}
+    for (cases) |a| {
+        for (cases) |b| {
+            for (alphas) |alpha| {
+                const expected = _testQuatNlerp(a, b, alpha);
+                const actual = a.nlerp(b, alpha);
+                const pass = expected.fuzzyEqual(actual, eps);
+                if (!pass) {
+                    std.debug.print("case failed {any}.lerp({any}, {any})\n, actual = {any}, expected = {any}\n", .{ a, b, alpha, actual, expected });
+                }
+                try std.testing.expect(pass);
+            }
+        }
+    }
+}
 
-test "Quat rotate" {}
+test "Quat slerp" {
+    const Vec3f = Vec3(f32);
+    const eps: f32 = 0.0001;
+    const s2o2: f32 = @sqrt(2.0) / 2.0;
+    const cases = [_]struct { Quatf, Quatf, Quatf, Quatf, Quatf }{
+        // a, b, slerp(1/4), slerp(1/2), slerp(3/4)
+        .{ Quatf.init(0, 0, 0, 1), Quatf.init(s2o2, 0, 0, s2o2), Quatf.initAxisAngle(Vec3f.x_axis, std.math.degreesToRadians(22.5)), Quatf.initAxisAngle(Vec3f.x_axis, std.math.degreesToRadians(45)), Quatf.initAxisAngle(Vec3f.x_axis, std.math.degreesToRadians(67.5)) },
+        .{ Quatf.init(0, 0, 0, 1), Quatf.init(0, s2o2, 0, s2o2), Quatf.initAxisAngle(Vec3f.y_axis, std.math.degreesToRadians(22.5)), Quatf.initAxisAngle(Vec3f.y_axis, std.math.degreesToRadians(45)), Quatf.initAxisAngle(Vec3f.y_axis, std.math.degreesToRadians(67.5)) },
+        .{ Quatf.init(0, 0, 0, 1), Quatf.init(0, 0, s2o2, s2o2), Quatf.initAxisAngle(Vec3f.z_axis, std.math.degreesToRadians(22.5)), Quatf.initAxisAngle(Vec3f.z_axis, std.math.degreesToRadians(45)), Quatf.initAxisAngle(Vec3f.z_axis, std.math.degreesToRadians(67.5)) },
+    };
+
+    for (cases) |case| {
+        const a, const b, const one_quarter, const one_half, const three_quarters = case;
+        const actual_one_quarter = a.slerp(b, 0.25);
+        const actual_one_half = a.slerp(b, 0.5);
+        const actual_three_quarters = a.slerp(b, 0.75);
+
+        const pass1 = one_quarter.fuzzyEqual(actual_one_quarter, eps);
+        if (!pass1) {
+            std.debug.print("case failed {any}slerp({any}, {any})\n, actual = {any}, expected = {any}\n len = {any}\n", .{ a, b, 0.25, actual_one_quarter, one_quarter, actual_one_quarter.len() });
+        }
+        const pass2 = one_half.fuzzyEqual(actual_one_half, eps);
+        const pass3 = three_quarters.fuzzyEqual(actual_three_quarters, eps);
+
+        try std.testing.expect(pass1 and pass2 and pass3);
+    }
+}
+
+test "Quat extractSwingTwist" {
+    const Vec3f = Vec3(f32);
+    const eps: f32 = 0.0001;
+    const s2o2: f32 = @sqrt(2.0) / 2.0;
+    const cases = [_]struct { Quatf, Vec3f, f32 }{
+        // 90, 180, 270 rot about x
+        .{ Quatf.init(s2o2, 0, 0, s2o2), Vec3f.init(1, 0, 0), std.math.pi / 2.0 },
+        .{ Quatf.init(1, 0, 0, 0), Vec3f.init(1, 0, 0), std.math.pi },
+        .{ Quatf.init(s2o2, 0, 0, -s2o2), Vec3f.init(1, 0, 0), (3.0 * std.math.pi) / 2.0 },
+
+        // 90, 180, 270 rot about y
+        .{ Quatf.init(0, s2o2, 0, s2o2), Vec3f.init(0, 1, 0), std.math.pi / 2.0 },
+        .{ Quatf.init(0, 1, 0, 0), Vec3f.init(0, 1, 0), std.math.pi },
+        .{ Quatf.init(0, s2o2, 0, -s2o2), Vec3f.init(0, 1, 0), (3.0 * std.math.pi) / 2.0 },
+
+        // 90, 180, 270 rot about z
+        .{ Quatf.init(0, 0, s2o2, s2o2), Vec3f.init(0, 0, 1), std.math.pi / 2.0 },
+        .{ Quatf.init(0, 0, 1, 0), Vec3f.init(0, 0, 1), std.math.pi },
+        .{ Quatf.init(0, 0, s2o2, -s2o2), Vec3f.init(0, 0, 1), (3.0 * std.math.pi) / 2.0 },
+    };
+
+    for (cases) |case| {
+        const q, const axis, const angle = case;
+        const swing, const twist = q.extractSwingTwist(axis);
+        const combined = swing.mul(twist);
+        const pass1 = q.fuzzyEqual(combined, eps);
+        const pass2 = swing.fuzzyEqual(Quatf.identity, eps);
+        if (!pass2) {
+            std.debug.print("case failed {any}, swing = {any}, twist = {any}\n", .{ case, swing, twist });
+        }
+
+        const pass3 = twist.fuzzyEqual(Quatf.initAxisAngle(axis, angle), eps);
+
+        try std.testing.expect(pass1 and pass2 and pass3);
+    }
+}
+
+test "Quat extractAxisAngle" {
+    const Vec3f = Vec3(f32);
+    const eps: f32 = 0.0001;
+    const s2o2: f32 = @sqrt(2.0) / 2.0;
+    const cases = [_]struct { Quatf, Vec3f, f32 }{
+        // 90, 180, 270 rot about x
+        .{ Quatf.init(s2o2, 0, 0, s2o2), Vec3f.init(1, 0, 0), std.math.pi / 2.0 },
+        .{ Quatf.init(1, 0, 0, 0), Vec3f.init(1, 0, 0), std.math.pi },
+        .{ Quatf.init(s2o2, 0, 0, -s2o2), Vec3f.init(1, 0, 0), (3.0 * std.math.pi) / 2.0 },
+
+        // 90, 180, 270 rot about y
+        .{ Quatf.init(0, s2o2, 0, s2o2), Vec3f.init(0, 1, 0), std.math.pi / 2.0 },
+        .{ Quatf.init(0, 1, 0, 0), Vec3f.init(0, 1, 0), std.math.pi },
+        .{ Quatf.init(0, s2o2, 0, -s2o2), Vec3f.init(0, 1, 0), (3.0 * std.math.pi) / 2.0 },
+
+        // 90, 180, 270 rot about z
+        .{ Quatf.init(0, 0, s2o2, s2o2), Vec3f.init(0, 0, 1), std.math.pi / 2.0 },
+        .{ Quatf.init(0, 0, 1, 0), Vec3f.init(0, 0, 1), std.math.pi },
+        .{ Quatf.init(0, 0, s2o2, -s2o2), Vec3f.init(0, 0, 1), (3.0 * std.math.pi) / 2.0 },
+    };
+
+    for (cases) |case| {
+        const q, const expected_axis, const expected_angle = case;
+        const actual_axis, const actual_angle = q.extractAxisAngle();
+        const pos_same = actual_axis.fuzzyEqual(expected_axis, eps) and @abs(actual_angle - expected_angle) <= eps;
+        const neg_same = actual_axis.fuzzyEqual(expected_axis.neg(), eps) and @abs(actual_angle + expected_angle) <= eps;
+        if (pos_same == neg_same) {
+            std.debug.print("case failed {any}, actual_axis = {any}, actual_angle = {any}\n", .{ case, actual_axis, actual_angle });
+        }
+        try std.testing.expect(pos_same != neg_same);
+    }
+}
+
+test "Quat rotate" {
+    const Vec3f = Vec3(f32);
+    const eps: f32 = 0.0001;
+    const s2o2: f32 = @sqrt(2.0) / 2.0;
+    const cases = [_]struct { Quatf, Vec3f, Vec3f }{
+        // ident
+        .{ Quatf.init(0, 0, 0, 1), Vec3f.init(1, 0, 0), Vec3f.init(1, 0, 0) },
+        .{ Quatf.init(0, 0, 0, 1), Vec3f.init(0, 1, 0), Vec3f.init(0, 1, 0) },
+
+        // 90, 270 rot about x
+        .{ Quatf.init(s2o2, 0, 0, s2o2), Vec3f.y_axis, Vec3f.z_axis },
+        .{ Quatf.init(s2o2, 0, 0, -s2o2), Vec3f.y_axis, Vec3f.z_axis.neg() },
+
+        // 90, 270 rot about y
+        .{ Quatf.init(0, s2o2, 0, s2o2), Vec3f.x_axis, Vec3f.z_axis.neg() },
+        .{ Quatf.init(0, s2o2, 0, -s2o2), Vec3f.x_axis, Vec3f.z_axis },
+
+        // 90, 270 rot about z
+        .{ Quatf.init(0, 0, s2o2, s2o2), Vec3f.x_axis, Vec3f.y_axis },
+        .{ Quatf.init(0, 0, s2o2, -s2o2), Vec3f.x_axis, Vec3f.y_axis.neg() },
+    };
+    for (cases) |case| {
+        const q, const from, const to = case;
+        const actual_to = q.rotate(from);
+        try std.testing.expect(actual_to.fuzzyEqual(to, eps));
+    }
+}

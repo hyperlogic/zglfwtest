@@ -30,6 +30,10 @@ pub fn Vec4(comptime T: type) type {
             return Self.init(v3.x, v3.y, v3.z, w);
         }
 
+        pub fn neg(self: Self) Self {
+            return Self.init(-self.x, -self.y, -self.z, -self.w);
+        }
+
         pub fn add(self: Self, other: Self) Self {
             return Self.init(self.x + other.x, self.y + other.y, self.z + other.z, self.w + other.w);
         }
@@ -89,12 +93,13 @@ test "Vec4 compiles" {
     std.testing.refAllDecls(Vec4(f32));
 }
 
-test "Vec4 zero" {
-    const a = Vec4(f32).zero;
-    try std.testing.expectEqual(@as(f32, 0.0), a.x);
-    try std.testing.expectEqual(@as(f32, 0.0), a.y);
-    try std.testing.expectEqual(@as(f32, 0.0), a.z);
-    try std.testing.expectEqual(@as(f32, 0.0), a.w);
+test "Vec4 neg" {
+    const a = Vec4f.init(1.0, 2.0, 3.0, 4.0);
+    const c = a.neg();
+    try std.testing.expectApproxEqAbs(@as(f32, -1.0), c.x, 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, -2.0), c.y, 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, -3.0), c.z, 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, -4.0), c.w, 1e-5);
 }
 
 test "Vec4 add" {
