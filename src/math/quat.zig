@@ -293,6 +293,10 @@ pub fn Quat(comptime T: type) type {
             const q = self.mul(Self.init(v.x, v.y, v.z, 0.0)).mul(self.conj());
             return q.im();
         }
+
+        pub fn format(self: Self, writer: *std.Io.Writer) std.Io.Writer.Error!void {
+            try writer.print("({d:.3}, {d:.3}, {d:.3}, {d:.3})", .{ self.x, self.y, self.z, self.w });
+        }
     };
 }
 

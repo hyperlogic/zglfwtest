@@ -202,6 +202,10 @@ pub fn Mat4(comptime T: type) type {
             const result = Vec3(T).init(r0.dot(v), r1.dot(v), r2.dot(v));
             return result;
         }
+
+        pub fn format(self: Self, writer: *std.Io.Writer) std.Io.Writer.Error!void {
+            try writer.print("({f}, {f}, {f}, {f})", .{ self.x, self.y, self.z, self.w });
+        }
     };
 }
 

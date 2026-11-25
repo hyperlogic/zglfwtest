@@ -83,6 +83,10 @@ pub fn Vec2(comptime T: type) type {
         pub fn fuzzyEqual(self: Self, other: Self, eps: T) bool {
             return @abs(self.x - other.x) <= eps and @abs(self.y - other.y) <= eps;
         }
+
+        pub fn format(self: Self, writer: *std.Io.Writer) std.Io.Writer.Error!void {
+            try writer.print("({d:.3}, {d:.3})", .{ self.x, self.y });
+        }
     };
 }
 

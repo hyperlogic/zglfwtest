@@ -86,6 +86,10 @@ pub fn Vec4(comptime T: type) type {
                 @abs(self.z - other.z) <= eps and
                 @abs(self.w - other.w) <= eps;
         }
+
+        pub fn format(self: Self, writer: *std.Io.Writer) std.Io.Writer.Error!void {
+            try writer.print("({d:.3}, {d:.3}, {d:.3}, {d:.3})", .{ self.x, self.y, self.z, self.w });
+        }
     };
 }
 

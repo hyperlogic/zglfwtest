@@ -3,10 +3,7 @@ const Io = std.Io;
 const zglfw = @import("zglfw");
 const zopengl = @import("zopengl");
 const zglfwtest = @import("zglfwtest");
-const vec2 = @import("vec2.zig");
-const vec3 = @import("vec3.zig");
-const vec4 = @import("vec4.zig");
-const quat = @import("quat.zig");
+const math = @import("math/root.zig");
 
 pub fn main(init: std.process.Init) !void {
 
@@ -55,6 +52,15 @@ pub fn main(init: std.process.Init) !void {
     // setup your graphics context here
     const gl = zopengl.bindings;
 
+    // test code
+    const a = math.Vec3f.init(1, 2, 3);
+    const b = math.Vec3f.init(4, 5, 6);
+    const a_plus_b = a.add(b);
+    std.debug.print("a + b = {f}\n", .{a_plus_b});
+
+    const m = math.Mat4f.initTransRotUniformScale(a, math.Quatf.initAxisAngle(math.Vec3f.y_axis, std.math.radiansToDegrees(45)), 1);
+    std.debug.print("m = {f}\n", .{m});
+
     while (!window.shouldClose()) {
         zglfw.pollEvents();
 
@@ -73,10 +79,7 @@ fn onGlfwError(code: zglfw.ErrorCode, desc: ?[*:0]const u8) callconv(.c) void {
 
 test {
     // Reference the math modules so their tests are analyzed and run.
-    _ = vec2;
-    _ = vec3;
-    _ = vec4;
-    _ = quat;
+    _ = .{ math.Vec3f, math.Vec3f, math.Vec4f, math.Quatf, math.Mat3f, math.Mat4f };
 }
 
 test "simple test" {
