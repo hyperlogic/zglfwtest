@@ -25,6 +25,10 @@ pub fn Vec2(comptime T: type) type {
             return Self{ .x = x, .y = y };
         }
 
+        pub fn splat(v: T) Self {
+            return Self.init(v, v);
+        }
+
         pub fn neg(self: Self) Self {
             return Self.init(-self.x, -self.y);
         }

@@ -79,7 +79,7 @@ fn onGlfwError(code: zglfw.ErrorCode, desc: ?[*:0]const u8) callconv(.c) void {
 
 test {
     // Reference the math modules so their tests are analyzed and run.
-    _ = .{ math.Vec3f, math.Vec3f, math.Vec4f, math.Quatf, math.Mat3f, math.Mat4f };
+    _ = .{ math.Vec3f, math.Vec3f, math.Vec4f, math.Quatf, math.Mat3f, math.Mat4f, math.Aabbf, math.Xformf };
 }
 
 test "simple test" {

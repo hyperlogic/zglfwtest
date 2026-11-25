@@ -4,6 +4,8 @@ const vec4 = @import("vec4.zig");
 const quat = @import("quat.zig");
 const mat3 = @import("mat3.zig");
 const mat4 = @import("mat4.zig");
+const aabb = @import("aabb.zig");
+const xform = @import("xform.zig");
 
 pub const Vec2 = vec2.Vec2;
 pub const Vec2f = vec2.Vec2f;
@@ -28,3 +30,11 @@ pub const Mat3d = mat3.Mat3d;
 pub const Mat4 = mat4.Mat4;
 pub const Mat4f = mat4.Mat4f;
 pub const Mat4d = mat4.Mat4d;
+
+pub const Aabb = aabb.Aabb;
+pub const Aabbf = aabb.Aabbf;
+pub const Aabbd = aabb.Aabbd;
+
+pub const Xform = xform.Xform;
+pub const Xformf = xform.Xformf;
+pub const Xformd = xform.Xformd;

@@ -32,6 +32,10 @@ pub fn Vec3(comptime T: type) type {
             return Self.init(v.x, v.y, v.z);
         }
 
+        pub fn splat(v: T) Self {
+            return Self.init(v, v, v);
+        }
+
         pub fn neg(self: Self) Self {
             return Self.init(-self.x, -self.y, -self.z);
         }

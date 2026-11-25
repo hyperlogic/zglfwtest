@@ -26,6 +26,10 @@ pub fn Vec4(comptime T: type) type {
             return Self{ .x = x, .y = y, .z = z, .w = w };
         }
 
+        pub fn splat(v: T) Self {
+            return Self.init(v, v, v, v);
+        }
+
         pub fn initVec3(v3: Vec3(T), w: T) Self {
             return Self.init(v3.x, v3.y, v3.z, w);
         }
