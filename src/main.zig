@@ -2,8 +2,62 @@ const std = @import("std");
 const Io = std.Io;
 const zglfw = @import("zglfw");
 const zopengl = @import("zopengl");
+const gl = zopengl.bindings;
 const zglfwtest = @import("zglfwtest");
 const math = @import("math/root.zig");
+
+const vert_shader_source = @embedFile("shader/vert.glsl");
+const frag_shader_source = @embedFile("shader/frag.glsl");
+
+fn compile_shader(source: []const u8, shader_type: gl.Enum) !gl.Uint {
+    const shader = gl.createShader(shader_type);
+    if (shader == 0) {
+        return error.CreateShaderFailed;
+    }
+    errdefer gl.deleteShader(shader);
+
+    const src_ptr: [*c]const gl.Char = source.ptr;
+    const src_len: gl.Int = @intCast(source.len);
+    gl.shaderSource(shader, 1, &src_ptr, &src_len);
+    gl.compileShader(shader);
+
+    var compiled: gl.Int = gl.FALSE;
+    gl.getShaderiv(shader, gl.COMPILE_STATUS, &compiled);
+
+    if (compiled == 0) {
+        var log_buf: [1024]u8 = undefined;
+        var log_len: gl.Sizei = 0;
+        gl.getShaderInfoLog(shader, log_buf.len, &log_len, &log_buf);
+        std.log.err("shader compile failed:\n{s}", .{log_buf[0..@intCast(log_len)]});
+        return error.ShaderCompileFailed;
+    }
+    return shader;
+}
+
+fn link_program(vert_shader: gl.Uint, frag_shader: gl.Uint) !gl.Uint {
+    const program = gl.createProgram();
+    if (program == 0) {
+        return error.CreateProgramFailed;
+    }
+    errdefer gl.deleteProgram(program);
+
+    gl.attachShader(program, vert_shader);
+    gl.attachShader(program, frag_shader);
+    gl.linkProgram(program);
+
+    var linked: gl.Int = gl.FALSE;
+    gl.getProgramiv(program, gl.LINK_STATUS, &linked);
+
+    if (linked == 0) {
+        var log_buf: [1024]u8 = undefined;
+        var log_len: gl.Sizei = 0;
+        gl.getProgramInfoLog(program, log_buf.len, &log_len, &log_buf);
+        std.log.err("program link failed:\n{s}", .{log_buf[0..@intCast(log_len)]});
+        return error.ProgramLinkFailed;
+    }
+
+    return program;
+}
 
 pub fn main(init: std.process.Init) !void {
 
@@ -50,23 +104,49 @@ pub fn main(init: std.process.Init) !void {
     try zopengl.loadCoreProfile(zglfw.getProcAddress, 4, 0);
 
     // setup your graphics context here
-    const gl = zopengl.bindings;
+    const vert_shader: gl.Uint = try compile_shader(vert_shader_source, gl.VERTEX_SHADER);
+    defer gl.deleteShader(vert_shader);
+    const frag_shader: gl.Uint = try compile_shader(frag_shader_source, gl.FRAGMENT_SHADER);
+    defer gl.deleteShader(frag_shader);
+    const prog: gl.Uint = try link_program(vert_shader, frag_shader);
+    defer gl.deleteProgram(prog);
 
-    // test code
-    const a = math.Vec3f.init(1, 2, 3);
-    const b = math.Vec3f.init(4, 5, 6);
-    const a_plus_b = a.add(b);
-    std.debug.print("a + b = {f}\n", .{a_plus_b});
+    const positions = [_]math.Vec3f{
+        math.Vec3f.init(0, 0, 0), math.Vec3f.init(1, 0, 0),
+        math.Vec3f.init(0, 0, 0), math.Vec3f.init(0, 1, 0),
+        math.Vec3f.init(0, 0, 0), math.Vec3f.init(0, 0, 1),
+    };
 
-    const m = math.Mat4f.initTransRotUniformScale(a, math.Quatf.initAxisAngle(math.Vec3f.y_axis, std.math.radiansToDegrees(45)), 1);
-    std.debug.print("m = {f}\n", .{m});
+    const colors = [_]math.Vec4f{
+        math.Vec4f.init(1, 0, 0, 1), math.Vec4f.init(1, 0, 0, 1),
+        math.Vec4f.init(0, 1, 0, 1), math.Vec4f.init(0, 1, 0, 1),
+        math.Vec4f.init(0, 0, 1, 1), math.Vec4f.init(0, 0, 1, 1),
+    };
 
     while (!window.shouldClose()) {
         zglfw.pollEvents();
 
-        // render your things here
-        const color = [_]f32{ 1.0, 0.0, 0.0, 1.0 };
+        const fb_size = window.getFramebufferSize();
+        gl.viewport(0, 0, fb_size[0], fb_size[1]);
+        const width: f32 = @floatFromInt(fb_size[0]);
+        const height: f32 = @floatFromInt(fb_size[1]);
+        const aspect = width / height;
+        const proj_mat = math.Mat4f.initPerspective(std.math.degreesToRadians(45), aspect, 0.01, 1000.0);
+
+        const color = [_]f32{ 0.0, 0.0, 0.0, 1.0 };
         gl.clearBufferfv(gl.COLOR, 0, &color);
+
+        const cam_mat = math.Mat4f.initTransRot(math.Vec3f.init(0, 0, 10), math.Quatf.identity);
+        const view_mat = cam_mat.orthoInverse();
+        const model_view_proj_mat = proj_mat.mul(view_mat);
+
+        gl.useProgram(prog);
+        gl.uniformMatrix4fv(0, 1, gl.FALSE, @ptrCast(&model_view_proj_mat));
+        gl.vertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 0, @ptrCast(&positions));
+        gl.enableVertexAttribArray(0);
+        gl.vertexAttribPointer(1, 4, gl.FLOAT, gl.FALSE, 0, @ptrCast(&colors));
+        gl.enableVertexAttribArray(1);
+        gl.drawArrays(gl.LINES, 0, @intCast(positions.len));
 
         window.swapBuffers();
     }

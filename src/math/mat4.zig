@@ -14,7 +14,7 @@ pub fn Mat4(comptime T: type) type {
         else => @compileError("Mat3 is only defined for floating point types. Type '" ++ @typeName(T) ++ "' is not supported."),
     }
 
-    return struct {
+    return extern struct {
         const Self = @This();
 
         // column vectors
@@ -32,6 +32,10 @@ pub fn Mat4(comptime T: type) type {
 
         pub fn init(x: Vec4(T), y: Vec4(T), z: Vec4(T), w: Vec4(T)) Self {
             return Self{ .x = x, .y = y, .z = z, .w = w };
+        }
+
+        pub fn splat(v: T) Self {
+            return Self.init(Vec4(T).splat(v), Vec4(T).splat(v), Vec4(T).splat(v), Vec4(T).splat(v));
         }
 
         pub fn initRot(r: Quat(T)) Self {
@@ -124,17 +128,57 @@ pub fn Mat4(comptime T: type) type {
             return Self.initScale(Vec3(T).init(s, s, s));
         }
 
+        pub fn initPerspective(fovy: T, aspect: T, near: T, far: T) Self {
+            const t = 1.0 / @tan(fovy * 0.5);
+            var result = Self.splat(0);
+            result.x.x = t / aspect;
+            result.y.y = t;
+            result.z.z = (far + near) / (near - far);
+            result.z.w = -1;
+            result.w.z = (2 * far * near) / (near - far);
+            return result;
+        }
+
+        pub fn initOrtho(left: T, right: T, bottom: T, top: T, near: T, far: T) Self {
+            var result = Self.splat(0);
+            result.x.x = 2 / (right - left);
+            result.y.y = 2 / (top - bottom);
+            result.z.z = -2 / (far - near);
+            result.w.x = -(right + left) / (right - left);
+            result.w.y = -(top + bottom) / (top - bottom);
+            result.w.z = -(far + near) / (far - near);
+            result.w.w = 1;
+            return result;
+        }
+
         pub fn mul(self: Self, other: Self) Self {
             const r0 = self.extractRow0();
             const r1 = self.extractRow1();
             const r2 = self.extractRow2();
             const r3 = self.extractRow3();
             return Self.init(
-                Vec4(T).init(r0.dot(other.x), r0.dot(other.y), r0.dot(other.z), r0.dot(other.w)),
-                Vec4(T).init(r1.dot(other.x), r1.dot(other.y), r1.dot(other.z), r1.dot(other.w)),
-                Vec4(T).init(r2.dot(other.x), r2.dot(other.y), r2.dot(other.z), r2.dot(other.w)),
-                Vec4(T).init(r3.dot(other.x), r3.dot(other.y), r3.dot(other.z), r3.dot(other.w)),
+                Vec4(T).init(r0.dot(other.x), r1.dot(other.x), r2.dot(other.x), r3.dot(other.x)),
+                Vec4(T).init(r0.dot(other.y), r1.dot(other.y), r2.dot(other.y), r3.dot(other.y)),
+                Vec4(T).init(r0.dot(other.z), r1.dot(other.z), r2.dot(other.z), r3.dot(other.z)),
+                Vec4(T).init(r0.dot(other.w), r1.dot(other.w), r2.dot(other.w), r3.dot(other.w)),
             );
+        }
+
+        pub fn transpose(self: Self) Self {
+            return Self.init(self.extractRow0(), self.extractRow1(), self.extractRow2(), self.extractRow3());
+        }
+
+        pub fn orthoInverse(self: Self) Self {
+            var result = self.transpose();
+            result.x.w = 0;
+            result.y.w = 0;
+            result.z.w = 0;
+            result.w.w = 1;
+            const trans = result.xformVec(self.extractTrans()).neg();
+            result.w.x = trans.x;
+            result.w.y = trans.y;
+            result.w.z = trans.z;
+            return result;
         }
 
         pub fn extractTrans(self: Self) Vec3(T) {

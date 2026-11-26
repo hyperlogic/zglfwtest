@@ -1,0 +1,23 @@
+/*
+    Copyright (c) 2024 Anthony J. Thibault
+    This software is licensed under the MIT License. See LICENSE for more details.
+*/
+
+//
+// No lighting at all, solid color
+//
+
+#version 430 core
+
+layout(location = 0) uniform mat4 model_view_proj_mat;
+
+layout(location = 0) in vec3 position;
+layout(location = 1) in vec4 color;
+
+out vec4 frag_color;
+
+void main(void)
+{
+  gl_Position = model_view_proj_mat * vec4(position, 1);
+  frag_color = color;
+}

@@ -14,7 +14,7 @@ pub fn Quat(comptime T: type) type {
         else => @compileError("Quat is only defined for floating point types. Type '" ++ @typeName(T) ++ "' is not supported."),
     }
 
-    return struct {
+    return extern struct {
         const Self = @This();
 
         x: T,

@@ -11,7 +11,7 @@ pub fn Vec3(comptime T: type) type {
         else => @compileError("Vec3 is only defined for floating point types. Type '" ++ @typeName(T) ++ "' is not supported."),
     }
 
-    return struct {
+    return extern struct {
         const Self = @This();
 
         x: T,

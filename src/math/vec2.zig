@@ -10,7 +10,7 @@ pub fn Vec2(comptime T: type) type {
         else => @compileError("Vec2 is only defined for floating point types. Type '" ++ @typeName(T) ++ "' is not supported."),
     }
 
-    return struct {
+    return extern struct {
         const Self = @This();
 
         x: T,

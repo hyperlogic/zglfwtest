@@ -12,7 +12,7 @@ pub fn Mat3(comptime T: type) type {
         else => @compileError("Mat3 is only defined for floating point types. Type '" ++ @typeName(T) ++ "' is not supported."),
     }
 
-    return struct {
+    return extern struct {
         const Self = @This();
 
         // column vectors
@@ -68,9 +68,9 @@ pub fn Mat3(comptime T: type) type {
             const r1 = self.extractRow1();
             const r2 = self.extractRow2();
             return Self.init(
-                Vec3(T).init(r0.dot(other.x), r0.dot(other.y), r0.dot(other.z)),
-                Vec3(T).init(r1.dot(other.x), r1.dot(other.y), r1.dot(other.z)),
-                Vec3(T).init(r2.dot(other.x), r2.dot(other.y), r2.dot(other.z)),
+                Vec3(T).init(r0.dot(other.x), r1.dot(other.x), r2.dot(other.x)),
+                Vec3(T).init(r0.dot(other.y), r1.dot(other.y), r2.dot(other.y)),
+                Vec3(T).init(r0.dot(other.z), r1.dot(other.z), r2.dot(other.z)),
             );
         }
 
