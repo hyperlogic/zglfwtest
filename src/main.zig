@@ -5,6 +5,7 @@ const zopengl = @import("zopengl");
 const gl = zopengl.bindings;
 const zglfwtest = @import("zglfwtest");
 const math = @import("math/root.zig");
+const FlyCam = @import("flycam.zig").FlyCam;
 
 const vert_shader_source = @embedFile("shader/vert.glsl");
 const frag_shader_source = @embedFile("shader/frag.glsl");
@@ -123,8 +124,54 @@ pub fn main(init: std.process.Init) !void {
         math.Vec4f.init(0, 0, 1, 1), math.Vec4f.init(0, 0, 1, 1),
     };
 
+    var flycam = FlyCam.init(
+        math.Vec3f.init(1, 0, 0), // world_up
+        math.Vec3f.init(0, 0, 10), // pos
+        math.Quatf.identity, // rot
+        10.0, // speed
+        1.0, // rot_speed
+    );
+
+    var last_time = zglfw.getTime();
     while (!window.shouldClose()) {
+        const now = zglfw.getTime();
+        const dt: f32 = @min(@as(f32, @floatCast(now - last_time)), 0.1);
+        last_time = now;
+
         zglfw.pollEvents();
+
+        var left_stick = math.Vec2f.splat(0);
+        var right_stick = math.Vec2f.splat(0);
+
+        if (window.getKey(.w) == .press) {
+            left_stick.y += 1;
+        }
+        if (window.getKey(.a) == .press) {
+            left_stick.x -= 1;
+        }
+        if (window.getKey(.s) == .press) {
+            left_stick.y -= 1;
+        }
+        if (window.getKey(.d) == .press) {
+            left_stick.x += 1;
+        }
+        if (window.getKey(.left) == .press) {
+            right_stick.x -= 1;
+        }
+        if (window.getKey(.right) == .press) {
+            right_stick.x += 1;
+        }
+        if (window.getKey(.up) == .press) {
+            right_stick.y += 1;
+        }
+        if (window.getKey(.down) == .press) {
+            right_stick.y -= 1;
+        }
+        if (window.getKey(.escape) == .press) {
+            window.setShouldClose(true);
+        }
+
+        flycam.process(left_stick, right_stick, 0.0, 0.0, dt);
 
         const fb_size = window.getFramebufferSize();
         gl.viewport(0, 0, fb_size[0], fb_size[1]);
@@ -136,7 +183,7 @@ pub fn main(init: std.process.Init) !void {
         const color = [_]f32{ 0.0, 0.0, 0.0, 1.0 };
         gl.clearBufferfv(gl.COLOR, 0, &color);
 
-        const cam_mat = math.Mat4f.initTransRot(math.Vec3f.init(0, 0, 10), math.Quatf.identity);
+        const cam_mat = flycam.camera_mat;
         const view_mat = cam_mat.orthoInverse();
         const model_view_proj_mat = proj_mat.mul(view_mat);
 

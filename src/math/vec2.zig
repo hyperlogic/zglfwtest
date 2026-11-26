@@ -84,6 +84,15 @@ pub fn Vec2(comptime T: type) type {
             return Self.init(@cos(theta), @sin(theta));
         }
 
+        pub fn clampLen(self: Self, max_len: T) Self {
+            const l = self.len();
+            if (l > max_len) {
+                return self.mulScalar(max_len / l);
+            } else {
+                return self;
+            }
+        }
+
         pub fn fuzzyEqual(self: Self, other: Self, eps: T) bool {
             return @abs(self.x - other.x) <= eps and @abs(self.y - other.y) <= eps;
         }
