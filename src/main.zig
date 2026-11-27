@@ -10,6 +10,13 @@ const FlyCam = @import("flycam.zig").FlyCam;
 const vert_shader_source = @embedFile("shader/vert.glsl");
 const frag_shader_source = @embedFile("shader/frag.glsl");
 
+fn gl_check_error(msg: []const u8) void {
+    const err = gl.getError();
+    if (err != gl.NO_ERROR) {
+        std.log.warn("{s} glGetError -> {any}", .{ msg, err });
+    }
+}
+
 fn compile_shader(source: []const u8, shader_type: gl.Enum) !gl.Uint {
     const shader = gl.createShader(shader_type);
     if (shader == 0) {
@@ -61,7 +68,6 @@ fn link_program(vert_shader: gl.Uint, frag_shader: gl.Uint) !gl.Uint {
 }
 
 pub fn main(init: std.process.Init) !void {
-
     // Prints to stderr, unbuffered, ignoring potential errors.
     std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
 
@@ -93,6 +99,12 @@ pub fn main(init: std.process.Init) !void {
     try zglfw.init();
     defer zglfw.terminate();
 
+    zglfw.windowHint(.context_version_major, 4);
+    zglfw.windowHint(.context_version_minor, 1);
+    zglfw.windowHint(.opengl_profile, .opengl_core_profile);
+    zglfw.windowHint(.opengl_forward_compat, true);
+    zglfw.windowHint(.client_api, .opengl_api);
+
     const window = try zglfw.createWindow(600, 600, "zig-gamedev: minimal_glfw_gl", null, null);
     defer zglfw.destroyWindow(window);
 
@@ -102,7 +114,7 @@ pub fn main(init: std.process.Init) !void {
     zglfw.makeContextCurrent(window);
     zglfw.swapInterval(1);
 
-    try zopengl.loadCoreProfile(zglfw.getProcAddress, 4, 0);
+    try zopengl.loadCoreProfile(zglfw.getProcAddress, 4, 1);
 
     // setup your graphics context here
     const vert_shader: gl.Uint = try compile_shader(vert_shader_source, gl.VERTEX_SHADER);
@@ -111,6 +123,15 @@ pub fn main(init: std.process.Init) !void {
     defer gl.deleteShader(frag_shader);
     const prog: gl.Uint = try link_program(vert_shader, frag_shader);
     defer gl.deleteProgram(prog);
+
+    gl_check_error("before get uniform loc");
+
+    const mvp_mat_loc = gl.getUniformLocation(prog, "model_view_proj_mat");
+    if (mvp_mat_loc == -1) {
+        std.log.warn("uniform not found", .{});
+    }
+
+    gl_check_error("after get uniform loc");
 
     const positions = [_]math.Vec3f{
         math.Vec3f.init(0, 0, 0), math.Vec3f.init(1, 0, 0),
@@ -131,6 +152,32 @@ pub fn main(init: std.process.Init) !void {
         10.0, // speed
         1.0, // rot_speed
     );
+
+    var vao: gl.Uint = undefined;
+    gl.genVertexArrays(1, &vao);
+    defer gl.deleteVertexArrays(1, &vao);
+
+    var positions_attrib_buffer: gl.Uint = undefined;
+    gl.genBuffers(1, &positions_attrib_buffer);
+    defer gl.deleteBuffers(1, &positions_attrib_buffer);
+    gl.bindBuffer(gl.ARRAY_BUFFER, positions_attrib_buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, @intCast(positions.len * 3 * 4), @ptrCast(&positions), gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, 0);
+
+    var colors_attrib_buffer: gl.Uint = undefined;
+    gl.genBuffers(1, &colors_attrib_buffer);
+    defer gl.deleteBuffers(1, &colors_attrib_buffer);
+    gl.bindBuffer(gl.ARRAY_BUFFER, colors_attrib_buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, @intCast(colors.len * 4 * 4), @ptrCast(&colors), gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, 0);
+
+    gl.bindVertexArray(vao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, positions_attrib_buffer);
+    gl.vertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 0, null);
+    gl.enableVertexAttribArray(0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, colors_attrib_buffer);
+    gl.vertexAttribPointer(1, 4, gl.FLOAT, gl.FALSE, 0, null);
+    gl.enableVertexAttribArray(1);
 
     var last_time = zglfw.getTime();
     while (!window.shouldClose()) {
@@ -188,12 +235,11 @@ pub fn main(init: std.process.Init) !void {
         const model_view_proj_mat = proj_mat.mul(view_mat);
 
         gl.useProgram(prog);
-        gl.uniformMatrix4fv(0, 1, gl.FALSE, @ptrCast(&model_view_proj_mat));
-        gl.vertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 0, @ptrCast(&positions));
-        gl.enableVertexAttribArray(0);
-        gl.vertexAttribPointer(1, 4, gl.FLOAT, gl.FALSE, 0, @ptrCast(&colors));
-        gl.enableVertexAttribArray(1);
+        gl.bindVertexArray(vao);
+        gl.uniformMatrix4fv(mvp_mat_loc, 1, gl.FALSE, @ptrCast(&model_view_proj_mat));
         gl.drawArrays(gl.LINES, 0, @intCast(positions.len));
+
+        gl_check_error("end render");
 
         window.swapBuffers();
     }

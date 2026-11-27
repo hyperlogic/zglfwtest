@@ -7,9 +7,9 @@
 // No lighting at all, solid color
 //
 
-#version 430 core
+#version 410 core
 
-layout(location = 0) uniform mat4 model_view_proj_mat;
+uniform mat4 model_view_proj_mat;
 
 layout(location = 0) in vec3 position;
 layout(location = 1) in vec4 color;
