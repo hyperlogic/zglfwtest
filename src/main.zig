@@ -6,19 +6,11 @@ const gl = zopengl.bindings;
 const zglfwtest = @import("zglfwtest");
 const math = @import("math/root.zig");
 const render = @import("render/root.zig");
-
 const FlyCam = @import("flycam.zig").FlyCam;
 const Program = render.Program;
 
 const vert_shader_source = @embedFile("shader/vert.glsl");
 const frag_shader_source = @embedFile("shader/frag.glsl");
-
-fn gl_check_error(msg: []const u8) void {
-    const err = gl.getError();
-    if (err != gl.NO_ERROR) {
-        std.log.warn("{s} glGetError -> {any}", .{ msg, err });
-    }
-}
 
 pub fn main(init: std.process.Init) !void {
     // Prints to stderr, unbuffered, ignoring potential errors.
@@ -72,7 +64,7 @@ pub fn main(init: std.process.Init) !void {
     // setup your graphics context here
 
     const gpa = std.heap.smp_allocator;
-    var prog = try Program.create(gpa, .{ .vert = vert_shader_source, .frag = frag_shader_source });
+    const prog = try Program.create(gpa, .{ .vert = vert_shader_source, .frag = frag_shader_source });
     defer prog.destroy();
 
     const mvp_mat_loc = gl.getUniformLocation(prog.prog, "model_view_proj_mat");
@@ -80,7 +72,7 @@ pub fn main(init: std.process.Init) !void {
         std.log.warn("uniform not found", .{});
     }
 
-    gl_check_error("after get uniform loc");
+    render.checkError("after get uniform loc");
 
     const positions = [_]math.Vec3f{
         math.Vec3f.init(0, 0, 0), math.Vec3f.init(1, 0, 0),
@@ -188,7 +180,7 @@ pub fn main(init: std.process.Init) !void {
         gl.uniformMatrix4fv(mvp_mat_loc, 1, gl.FALSE, @ptrCast(&model_view_proj_mat));
         gl.drawArrays(gl.LINES, 0, @intCast(positions.len));
 
-        gl_check_error("end render");
+        render.checkError("end render");
 
         window.swapBuffers();
     }
