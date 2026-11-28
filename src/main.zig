@@ -5,7 +5,10 @@ const zopengl = @import("zopengl");
 const gl = zopengl.bindings;
 const zglfwtest = @import("zglfwtest");
 const math = @import("math/root.zig");
+const render = @import("render/root.zig");
+
 const FlyCam = @import("flycam.zig").FlyCam;
+const Program = render.Program;
 
 const vert_shader_source = @embedFile("shader/vert.glsl");
 const frag_shader_source = @embedFile("shader/frag.glsl");
@@ -15,56 +18,6 @@ fn gl_check_error(msg: []const u8) void {
     if (err != gl.NO_ERROR) {
         std.log.warn("{s} glGetError -> {any}", .{ msg, err });
     }
-}
-
-fn compile_shader(source: []const u8, shader_type: gl.Enum) !gl.Uint {
-    const shader = gl.createShader(shader_type);
-    if (shader == 0) {
-        return error.CreateShaderFailed;
-    }
-    errdefer gl.deleteShader(shader);
-
-    const src_ptr: [*c]const gl.Char = source.ptr;
-    const src_len: gl.Int = @intCast(source.len);
-    gl.shaderSource(shader, 1, &src_ptr, &src_len);
-    gl.compileShader(shader);
-
-    var compiled: gl.Int = gl.FALSE;
-    gl.getShaderiv(shader, gl.COMPILE_STATUS, &compiled);
-
-    if (compiled == 0) {
-        var log_buf: [1024]u8 = undefined;
-        var log_len: gl.Sizei = 0;
-        gl.getShaderInfoLog(shader, log_buf.len, &log_len, &log_buf);
-        std.log.err("shader compile failed:\n{s}", .{log_buf[0..@intCast(log_len)]});
-        return error.ShaderCompileFailed;
-    }
-    return shader;
-}
-
-fn link_program(vert_shader: gl.Uint, frag_shader: gl.Uint) !gl.Uint {
-    const program = gl.createProgram();
-    if (program == 0) {
-        return error.CreateProgramFailed;
-    }
-    errdefer gl.deleteProgram(program);
-
-    gl.attachShader(program, vert_shader);
-    gl.attachShader(program, frag_shader);
-    gl.linkProgram(program);
-
-    var linked: gl.Int = gl.FALSE;
-    gl.getProgramiv(program, gl.LINK_STATUS, &linked);
-
-    if (linked == 0) {
-        var log_buf: [1024]u8 = undefined;
-        var log_len: gl.Sizei = 0;
-        gl.getProgramInfoLog(program, log_buf.len, &log_len, &log_buf);
-        std.log.err("program link failed:\n{s}", .{log_buf[0..@intCast(log_len)]});
-        return error.ProgramLinkFailed;
-    }
-
-    return program;
 }
 
 pub fn main(init: std.process.Init) !void {
@@ -117,16 +70,12 @@ pub fn main(init: std.process.Init) !void {
     try zopengl.loadCoreProfile(zglfw.getProcAddress, 4, 1);
 
     // setup your graphics context here
-    const vert_shader: gl.Uint = try compile_shader(vert_shader_source, gl.VERTEX_SHADER);
-    defer gl.deleteShader(vert_shader);
-    const frag_shader: gl.Uint = try compile_shader(frag_shader_source, gl.FRAGMENT_SHADER);
-    defer gl.deleteShader(frag_shader);
-    const prog: gl.Uint = try link_program(vert_shader, frag_shader);
-    defer gl.deleteProgram(prog);
 
-    gl_check_error("before get uniform loc");
+    const gpa = std.heap.smp_allocator;
+    var prog = try Program.create(gpa, .{ .vert = vert_shader_source, .frag = frag_shader_source });
+    defer prog.destroy();
 
-    const mvp_mat_loc = gl.getUniformLocation(prog, "model_view_proj_mat");
+    const mvp_mat_loc = gl.getUniformLocation(prog.prog, "model_view_proj_mat");
     if (mvp_mat_loc == -1) {
         std.log.warn("uniform not found", .{});
     }
@@ -234,7 +183,7 @@ pub fn main(init: std.process.Init) !void {
         const view_mat = cam_mat.orthoInverse();
         const model_view_proj_mat = proj_mat.mul(view_mat);
 
-        gl.useProgram(prog);
+        gl.useProgram(prog.prog);
         gl.bindVertexArray(vao);
         gl.uniformMatrix4fv(mvp_mat_loc, 1, gl.FALSE, @ptrCast(&model_view_proj_mat));
         gl.drawArrays(gl.LINES, 0, @intCast(positions.len));
