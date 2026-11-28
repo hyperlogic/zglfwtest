@@ -66,12 +66,6 @@ pub fn main(init: std.process.Init) !void {
     const gpa = std.heap.smp_allocator;
     const prog = try Program.create(gpa, .{ .vert = vert_shader_source, .frag = frag_shader_source });
     defer prog.destroy();
-
-    const mvp_mat_loc = gl.getUniformLocation(prog.prog, "model_view_proj_mat");
-    if (mvp_mat_loc == -1) {
-        std.log.warn("uniform not found", .{});
-    }
-
     render.checkError("after get uniform loc");
 
     const positions = [_]math.Vec3f{
@@ -177,7 +171,7 @@ pub fn main(init: std.process.Init) !void {
 
         gl.useProgram(prog.prog);
         gl.bindVertexArray(vao);
-        gl.uniformMatrix4fv(mvp_mat_loc, 1, gl.FALSE, @ptrCast(&model_view_proj_mat));
+        try prog.setUniformMat4f("model_view_proj_mat", model_view_proj_mat);
         gl.drawArrays(gl.LINES, 0, @intCast(positions.len));
 
         render.checkError("end render");
