@@ -11,8 +11,8 @@
 
 uniform mat4 model_view_proj_mat;
 
-layout(location = 0) in vec3 position;
-layout(location = 1) in vec4 color;
+in vec3 position;
+in vec4 color;
 
 out vec4 frag_color;
 

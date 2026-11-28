@@ -108,10 +108,12 @@ pub fn main(init: std.process.Init) !void {
 
     gl.bindVertexArray(vao);
     gl.bindBuffer(gl.ARRAY_BUFFER, positions_attrib_buffer);
-    gl.vertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 0, null);
+    const position_var = try prog.getActiveAttrib("position");
+    gl.vertexAttribPointer(@intCast(position_var.loc), 3, gl.FLOAT, gl.FALSE, 0, null);
     gl.enableVertexAttribArray(0);
     gl.bindBuffer(gl.ARRAY_BUFFER, colors_attrib_buffer);
-    gl.vertexAttribPointer(1, 4, gl.FLOAT, gl.FALSE, 0, null);
+    const color_var = try prog.getActiveAttrib("color");
+    gl.vertexAttribPointer(@intCast(color_var.loc), 4, gl.FLOAT, gl.FALSE, 0, null);
     gl.enableVertexAttribArray(1);
 
     var last_time = zglfw.getTime();
