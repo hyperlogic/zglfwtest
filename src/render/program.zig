@@ -12,7 +12,7 @@ const gl = zopengl.bindings;
 pub const Program = struct {
     const Self = @This();
 
-    const Variable = struct {
+    const ActiveVar = struct {
         size: gl.Int,
         type: gl.Uint,
         loc: gl.Int,
@@ -30,8 +30,8 @@ pub const Program = struct {
     geom_shader: gl.Uint = 0,
     frag_shader: gl.Uint = 0,
 
-    uniform_map: std.StringHashMap(Variable),
-    attrib_map: std.StringHashMap(Variable),
+    uniform_map: std.StringHashMap(ActiveVar),
+    attrib_map: std.StringHashMap(ActiveVar),
     macros: std.StringHashMap([]const u8),
 
     pub fn create(allocator: std.mem.Allocator, src: Source) !*Self {
@@ -39,8 +39,8 @@ pub const Program = struct {
         errdefer allocator.destroy(self);
         self.* = .{
             .allocator = allocator,
-            .uniform_map = std.StringHashMap(Variable).init(allocator),
-            .attrib_map = std.StringHashMap(Variable).init(allocator),
+            .uniform_map = std.StringHashMap(ActiveVar).init(allocator),
+            .attrib_map = std.StringHashMap(ActiveVar).init(allocator),
             .macros = std.StringHashMap([]const u8).init(allocator),
         };
 
@@ -135,50 +135,48 @@ pub const Program = struct {
     }
 
     pub fn setUniformFloat(self: Self, name: []const u8, value: f32) !void {
-        if (self.uniform_map.get(name)) |u| {
-            gl.uniformMatrix1f(u.loc, 1, value);
-        } else {
-            return error.UniformNotFound;
-        }
+        const active_var = try self.getActiveUniform(name);
+        gl.uniformMatrix1f(active_var.loc, 1, value);
     }
 
     pub fn setUniformVec2f(self: Self, name: []const u8, value: Vec2f) !void {
-        if (self.uniform_map.get(name)) |u| {
-            gl.uniformMatrix2fv(u.loc, 1, @ptrCast(&value));
-        } else {
-            return error.UniformNotFound;
-        }
+        const active_var = try self.getActiveUniform(name);
+        gl.uniformMatrix2fv(active_var.loc, 1, @ptrCast(&value));
     }
 
     pub fn setUniformVec3f(self: Self, name: []const u8, value: Vec3f) !void {
-        if (self.uniform_map.get(name)) |u| {
-            gl.uniformMatrix3fv(u.loc, 1, @ptrCast(&value));
-        } else {
-            return error.UniformNotFound;
-        }
+        const active_var = try self.getActiveUniform(name);
+        gl.uniformMatrix3fv(active_var.loc, 1, @ptrCast(&value));
     }
 
     pub fn setUniformVec4f(self: Self, name: []const u8, value: Vec4f) !void {
-        if (self.uniform_map.get(name)) |u| {
-            gl.uniformMatrix4fv(u.loc, 1, @ptrCast(&value));
-        } else {
-            return error.UniformNotFound;
-        }
+        const active_var = try self.getActiveUniform(name);
+        gl.uniformMatrix4fv(active_var.loc, 1, @ptrCast(&value));
     }
 
     pub fn setUniformMat3f(self: Self, name: []const u8, value: Mat3f) !void {
+        const active_var = try self.getActiveUniform(name);
+        gl.uniformMatrix3fv(active_var.loc, 1, gl.FALSE, @ptrCast(&value));
+    }
+
+    pub fn setUniformMat4f(self: Self, name: []const u8, value: Mat4f) !void {
+        const active_var = try self.getActiveUniform(name);
+        gl.uniformMatrix4fv(active_var.loc, 1, gl.FALSE, @ptrCast(&value));
+    }
+
+    pub fn getActiveUniform(self: Self, name: []const u8) !ActiveVar {
         if (self.uniform_map.get(name)) |u| {
-            gl.uniformMatrix3fv(u.loc, 1, gl.FALSE, @ptrCast(&value));
+            return u;
         } else {
             return error.UniformNotFound;
         }
     }
 
-    pub fn setUniformMat4f(self: Self, name: []const u8, value: Mat4f) !void {
-        if (self.uniform_map.get(name)) |u| {
-            gl.uniformMatrix4fv(u.loc, 1, gl.FALSE, @ptrCast(&value));
+    pub fn getActiveAttrib(self: Self, name: []const u8) !ActiveVar {
+        if (self.attrib_map.get(name)) |u| {
+            return u;
         } else {
-            return error.UniformNotFound;
+            return error.AttribNotFound;
         }
     }
 };
